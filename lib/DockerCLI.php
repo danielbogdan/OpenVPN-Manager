@@ -118,7 +118,7 @@ final class DockerCLI
         ];
         
         foreach ($commands as $cmd) {
-            self::run("sudo $cmd");
+            self::run($cmd);
         }
     }
 
@@ -137,8 +137,8 @@ final class DockerCLI
     public static function removeBridgeInterface(string $bridgeName): void
     {
         try {
-            self::run("sudo ip link set $bridgeName down");
-            self::run("sudo ip link delete $bridgeName");
+            self::run("ip link set $bridgeName down");
+            self::run("ip link delete $bridgeName");
         } catch (\RuntimeException $e) {
             // Bridge might not exist, ignore error
         }
@@ -147,6 +147,15 @@ final class DockerCLI
     /** Configurează routing și NAT pentru bridge. */
     public static function configureBridgeRouting(string $bridgeName, string $subnet, string $externalInterface = 'eth0'): void
     {
+        // Check if iptables is available
+        try {
+            self::run("which iptables >/dev/null 2>&1");
+        } catch (\RuntimeException $e) {
+            // iptables not available, skip routing configuration
+            // Docker will handle the networking
+            return;
+        }
+        
         $commands = [
             "iptables -t nat -A POSTROUTING -s $subnet -o $externalInterface -j MASQUERADE",
             "iptables -A FORWARD -i $bridgeName -o $externalInterface -j ACCEPT",
@@ -155,7 +164,7 @@ final class DockerCLI
         
         foreach ($commands as $cmd) {
             try {
-                self::run("sudo $cmd");
+                self::run($cmd);
             } catch (\RuntimeException $e) {
                 // Rule might already exist, continue
             }
