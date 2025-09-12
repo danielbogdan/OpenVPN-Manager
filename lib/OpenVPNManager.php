@@ -316,8 +316,8 @@ class OpenVPNManager
 
         foreach ($lines as $line) {
             $line = trim($line);
-            if (strpos($line, 'CLIENT_LIST,Common Name,Real Address,') === 0) { $stage = 'clients'; continue; }
-            if (strpos($line, 'ROUTING_TABLE,Virtual Address,Common Name,') === 0) { $stage = 'routes';  continue; }
+            if (strpos($line, 'HEADER,CLIENT_LIST,Common Name,Real Address,') === 0) { $stage = 'clients'; continue; }
+            if (strpos($line, 'HEADER,ROUTING_TABLE,Virtual Address,Common Name,') === 0) { $stage = 'routes';  continue; }
             if (strpos($line, 'GLOBAL_STATS,') === 0 || $line === 'END') { $stage=''; continue; }
 
             if ($stage === 'clients' && strpos($line, 'CLIENT_LIST,') === 0) {
