@@ -3,12 +3,21 @@ require __DIR__ . '/../../config.php';
 
 use App\ClientAuth;
 use App\DB;
+use App\OpenVPNManager;
 
 ClientAuth::require();
 
 $user = ClientAuth::getCurrentUser();
 $tenantId = ClientAuth::getCurrentTenantId();
 $pdo = DB::pdo();
+
+// Refresh sessions to get latest connection data
+try {
+    OpenVPNManager::refreshSessions($tenantId);
+} catch (\Throwable $e) {
+    // Log error but don't break the page
+    error_log("Failed to refresh sessions for tenant {$tenantId}: " . $e->getMessage());
+}
 
 // Get tenant info
 $stmt = $pdo->prepare("SELECT * FROM tenants WHERE id = ?");

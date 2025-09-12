@@ -88,6 +88,8 @@ class OpenVPNManager
                 'push "redirect-gateway def1 bypass-dhcp"',
                 'push "dhcp-option DNS ' . addslashes($dns1) . '"',
                 'push "dhcp-option DNS ' . addslashes($dns2) . '"',
+                'status /etc/openvpn/openvpn-status.log',
+                'status-version 2',
             ] as $line) {
                 $cmd = sprintf(
                     "docker run --rm -v %s:/etc/openvpn busybox sh -lc %s",

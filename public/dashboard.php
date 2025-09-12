@@ -4,12 +4,23 @@ require __DIR__ . '/../config.php';
 use App\Auth;
 use App\DB;
 use App\Util;
+use App\OpenVPNManager;
 
 Auth::require();
 
 $pdo     = DB::pdo();
 $tenants = $pdo->query("SELECT * FROM tenants ORDER BY id DESC")->fetchAll();
 $csrf    = Auth::csrf();
+
+// Refresh sessions for all tenants to get latest connection data
+foreach ($tenants as $tenant) {
+    try {
+        OpenVPNManager::refreshSessions($tenant['id']);
+    } catch (\Throwable $e) {
+        // Log error but don't break the page
+        error_log("Failed to refresh sessions for tenant {$tenant['id']}: " . $e->getMessage());
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
