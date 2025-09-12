@@ -1,0 +1,51 @@
+services:
+  db:
+    image: mariadb:11
+    container_name: ovpnadmin_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${DB_NAME:-openvpn_admin}
+      MYSQL_USER: ${DB_USER:-openvpn}
+      MYSQL_PASSWORD: ${DB_PASS:-openvpnpass}
+    env_file:
+      - .env
+    volumes:
+      - db_data:/var/lib/mysql
+      # Import automat al schemei
+      - ./db.sql:/docker-entrypoint-initdb.d/00_schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpass}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  web:
+    build: .
+    container_name: ovpnadmin_web
+    restart: unless-stopped
+    ports:
+      - "808:80"             # Accesezi la http://localhost:808
+    environment:
+      TZ: ${TZ:-Europe/Bucharest}
+      APP_KEY: ${APP_KEY:-change_me}
+      OVPN_IMAGE: ${OVPN_IMAGE:-kylemanna/openvpn:latest}
+      DEFAULT_DNS1: ${DEFAULT_DNS1:-1.1.1.1}
+      DEFAULT_DNS2: ${DEFAULT_DNS2:-9.9.9.9}
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-openvpn_admin}
+      DB_USER: ${DB_USER:-openvpn}
+      DB_PASS: ${DB_PASS:-openvpnpass}
+      OVPN_PLATFORM: linux/amd64
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    # Montăm codul pentru dezvoltare + socketul Docker al host-ului
+    volumes:
+      - ./:/var/www/html
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  db_data:
