@@ -294,7 +294,13 @@ class OpenVPNManager
     {
         $pdo = DB::pdo();
         $t   = self::getTenant($tenantId);
+        if (!$t) {
+            throw new \RuntimeException("Tenant with ID $tenantId not found");
+        }
         $ctr = $t['docker_container'];
+        if (!$ctr) {
+            throw new \RuntimeException("Docker container not found for tenant $tenantId");
+        }
         $statusFile = $t['status_path'] ?: '/tmp/openvpn-status.log';
 
         $out = DockerCLI::exec($ctr, "test -f " . escapeshellarg($statusFile) . " && cat " . escapeshellarg($statusFile) . " || true");
