@@ -12,9 +12,8 @@ if (!Auth::verifyCsrf($_POST['csrf'] ?? '')) {
     exit('Bad CSRF');
 }
 
-$name   = trim($_POST['name']   ?? '');
-$subnet = trim($_POST['subnet'] ?? '');
-$nat    = isset($_POST['nat']);
+$name = trim($_POST['name'] ?? '');
+$nat  = isset($_POST['nat']);
 
 if ($name === '') {
     header('Location: /dashboard.php');
@@ -31,8 +30,8 @@ try {
         0,                // ignorat de manager (compat)
         $name,
         null,             // public IP auto
-        null,             // port auto (din DB)
-        $subnet !== '' ? $subnet : null,
+        null,             // port auto
+        null,             // subnet auto
         $nat
     );
 

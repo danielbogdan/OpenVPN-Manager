@@ -326,20 +326,8 @@ $error = $_GET['error'] ?? null;
           <input type="text" id="name" name="name" required placeholder="Enter tenant name">
         </div>
         <div class="form-group">
-          <label for="public_ip">Public IP</label>
-          <input type="text" id="public_ip" name="public_ip" required placeholder="Enter public IP address">
-        </div>
-        <div class="form-group">
-          <label for="listen_port">Listen Port</label>
-          <input type="number" id="listen_port" name="listen_port" required placeholder="Enter port number">
-        </div>
-        <div class="form-group">
-          <label for="subnet_cidr">Subnet CIDR</label>
-          <input type="text" id="subnet_cidr" name="subnet_cidr" required placeholder="Enter subnet (e.g., 10.10.0.0/26)">
-        </div>
-        <div class="form-group">
           <label>
-            <input type="checkbox" name="nat_enabled" value="1" checked>
+            <input type="checkbox" name="nat" value="1" checked>
             Enable NAT
           </label>
         </div>

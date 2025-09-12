@@ -261,11 +261,7 @@ $csrf    = Auth::csrf();
         <input type="hidden" name="csrf" value="<?= $csrf ?>">
         <div class="form-group">
           <label for="name">Tenant Name:</label>
-          <input type="text" id="name" name="name" required>
-        </div>
-        <div class="form-group">
-          <label for="subnet">Subnet CIDR (leave empty for auto-allocate):</label>
-          <input type="text" id="subnet" name="subnet" placeholder="Auto-allocate">
+          <input type="text" id="name" name="name" required placeholder="Enter tenant name">
         </div>
         <div class="form-group">
           <label>
