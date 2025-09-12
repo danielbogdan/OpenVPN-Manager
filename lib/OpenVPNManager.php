@@ -306,7 +306,9 @@ class OpenVPNManager
         $out = DockerCLI::exec($ctr, "test -f " . escapeshellarg($statusFile) . " && cat " . escapeshellarg($statusFile) . " || true");
         $raw = implode("\n", $out);
 
-        $pdo->prepare("DELETE FROM sessions WHERE tenant_id=?")->execute([$tenantId]);
+        // First, clean up old sessions (older than 2 minutes without activity)
+        $pdo->prepare("DELETE FROM sessions WHERE tenant_id = ? AND last_seen < DATE_SUB(NOW(), INTERVAL 2 MINUTE)")->execute([$tenantId]);
+        
         if (!$raw) {
             error_log("OpenVPN status file is empty for tenant $tenantId");
             return;
@@ -366,11 +368,19 @@ class OpenVPNManager
                 $stmt = $pdo->prepare(
                     "INSERT INTO sessions(tenant_id,user_id,common_name,real_address,virtual_address,
                      bytes_received,bytes_sent,since,geo_country,geo_city,last_seen)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,NOW())"
+                     VALUES (?,?,?,?,?,?,?,?,?,?,NOW())
+                     ON DUPLICATE KEY UPDATE
+                     real_address = VALUES(real_address),
+                     virtual_address = VALUES(virtual_address),
+                     bytes_received = VALUES(bytes_received),
+                     bytes_sent = VALUES(bytes_sent),
+                     geo_country = VALUES(geo_country),
+                     geo_city = VALUES(geo_city),
+                     last_seen = NOW()"
                 );
                 $stmt->execute([$tenantId, $userId, $cn, $c['real'], $vip, $c['br'], $c['bs'], $since, $country, $city]);
             } catch (\Throwable $e) {
-                error_log("Failed to insert session for $cn: " . $e->getMessage());
+                error_log("Failed to insert/update session for $cn: " . $e->getMessage());
             }
         }
     }

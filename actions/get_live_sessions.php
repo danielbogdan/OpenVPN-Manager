@@ -16,16 +16,16 @@ try {
         throw new \InvalidArgumentException('Tenant ID required');
     }
     
-    // Refresh sessions for the tenant
+    // Refresh sessions for the tenant (this will clean up old sessions and update active ones)
     OpenVPNManager::refreshSessions($tenantId);
     
-    // Get updated session data
+    // Get updated session data (only active sessions from last 2 minutes)
     $pdo = DB::pdo();
     $stmt = $pdo->prepare("
         SELECT s.*, vu.username, vu.email
         FROM sessions s
         LEFT JOIN vpn_users vu ON s.user_id = vu.id
-        WHERE s.tenant_id = ? AND s.last_seen >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+        WHERE s.tenant_id = ? AND s.last_seen >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
         ORDER BY s.last_seen DESC
     ");
     $stmt->execute([$tenantId]);
