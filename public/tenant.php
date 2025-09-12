@@ -354,7 +354,7 @@ $countries = $countries->fetchColumn();
     <!-- Client Users Section -->
     <div class="dashboard-section">
       <div class="section-header">
-        <h2>👨‍💼 Client Users</h2>
+        <h2>👨‍💼 User Portal Client Users</h2>
         <button class="btn btn-primary" onclick="showCreateClientUserForm()">
           <span class="btn-icon">➕</span>
           New Client User
