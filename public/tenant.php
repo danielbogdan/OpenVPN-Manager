@@ -334,7 +334,7 @@ $countries = $countries->fetchColumn();
                 <div class="connection-item">
                   <div class="connection-info">
                     <span class="connection-name"><?= htmlspecialchars($session['common_name']) ?></span>
-                    <span class="connection-ip"><?= htmlspecialchars($session['vpn_ip']) ?></span>
+                    <span class="connection-ip"><?= htmlspecialchars($session['virtual_address'] ?? 'N/A') ?></span>
                   </div>
                   <div class="connection-location">
                     <?= htmlspecialchars($session['geo_country'] ?? 'Unknown') ?> • 
