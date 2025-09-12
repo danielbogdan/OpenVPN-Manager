@@ -5,7 +5,7 @@ use App\OpenVPNManager;
 use App\DB;
 use App\DockerCLI;
 
-echo "=== DEBUGGING SESSION PARSING ===\n\n";
+echo "=== FULL DEBUG SESSION REFRESH ===\n\n";
 
 try {
     $pdo = DB::pdo();
@@ -42,17 +42,17 @@ try {
     $clients = [];
     $routes = [];
     
-    echo "Parsing lines:\n";
+    echo "=== PARSING ===\n";
     foreach ($lines as $lineNum => $line) {
         $line = trim($line);
         echo "Line " . ($lineNum + 1) . ": '$line'\n";
         
-        if (strpos($line, 'CLIENT_LIST,Common Name,Real Address,') === 0) { 
+        if (strpos($line, 'HEADER,CLIENT_LIST,Common Name,Real Address,') === 0) { 
             $stage = 'clients'; 
             echo "  -> Entering clients stage\n";
             continue; 
         }
-        if (strpos($line, 'ROUTING_TABLE,Virtual Address,Common Name,') === 0) { 
+        if (strpos($line, 'HEADER,ROUTING_TABLE,Virtual Address,Common Name,') === 0) { 
             $stage = 'routes';  
             echo "  -> Entering routes stage\n";
             continue; 
@@ -124,6 +124,57 @@ try {
         } else {
             echo "❌ VPN user NOT found for $cn\n";
         }
+    }
+    
+    // Try to insert sessions manually
+    echo "\n=== MANUAL SESSION INSERTION ===\n";
+    foreach ($clients as $cn => $c) {
+        [$ip] = explode(':', $c['real'], 2);
+        [$country, $city] = GeoIP::lookup($ip);
+        
+        $vip = $routes[$cn] ?? null;
+        $since = $c['since'] ? date('Y-m-d H:i:s', $c['since']) : null;
+        
+        // Get user_id for this common_name
+        $userStmt = $pdo->prepare("SELECT id FROM vpn_users WHERE tenant_id = ? AND username = ?");
+        $userStmt->execute([3, $cn]);
+        $user = $userStmt->fetch();
+        $userId = $user ? $user['id'] : null;
+        
+        echo "Inserting session for $cn:\n";
+        echo "  - tenant_id: 3\n";
+        echo "  - user_id: $userId\n";
+        echo "  - common_name: $cn\n";
+        echo "  - real_address: " . $c['real'] . "\n";
+        echo "  - virtual_address: $vip\n";
+        echo "  - bytes_received: " . $c['br'] . "\n";
+        echo "  - bytes_sent: " . $c['bs'] . "\n";
+        echo "  - since: $since\n";
+        echo "  - country: $country\n";
+        echo "  - city: $city\n";
+        
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO sessions(tenant_id,user_id,common_name,real_address,virtual_address,
+                 bytes_received,bytes_sent,since,geo_country,geo_city,last_seen)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,NOW())"
+            );
+            $stmt->execute([3, $userId, $cn, $c['real'], $vip, $c['br'], $c['bs'], $since, $country, $city]);
+            echo "  -> ✅ Inserted successfully\n";
+        } catch (\Throwable $e) {
+            echo "  -> ❌ Insert failed: " . $e->getMessage() . "\n";
+        }
+    }
+    
+    // Check sessions in database
+    echo "\n=== FINAL SESSIONS CHECK ===\n";
+    $stmt = $pdo->prepare("SELECT * FROM sessions WHERE tenant_id = ?");
+    $stmt->execute([3]);
+    $sessions = $stmt->fetchAll();
+    
+    echo "Found " . count($sessions) . " sessions in database:\n";
+    foreach ($sessions as $session) {
+        echo "- " . $session['common_name'] . " from " . $session['real_address'] . " (IP: " . $session['virtual_address'] . ")\n";
     }
     
 } catch (\Throwable $e) {
