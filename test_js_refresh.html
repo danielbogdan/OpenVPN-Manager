@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auto-Refresh Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Auto-Refresh Test</h1>
+    <div id="status">Testing...</div>
+    <div id="logs"></div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(div);
+            logs.scrollTop = logs.scrollHeight;
+        }
+        
+        function testAutoRefresh() {
+            log('Testing auto-refresh functionality...', 'info');
+            
+            // Test if we can find tenant elements
+            const tenantElements = document.querySelectorAll('[data-tenant-id]');
+            log(`Found ${tenantElements.length} tenant elements with data-tenant-id`, 'info');
+            
+            if (tenantElements.length === 0) {
+                log('❌ No tenant elements found - auto-refresh will not work', 'error');
+                return;
+            }
+            
+            const tenantIds = Array.from(tenantElements).map(el => el.getAttribute('data-tenant-id'));
+            log(`Tenant IDs found: ${tenantIds.join(', ')}`, 'info');
+            
+            // Test API call
+            tenantIds.forEach(tenantId => {
+                log(`Testing API call for tenant ${tenantId}...`, 'info');
+                
+                fetch(`/actions/get_live_sessions.php?tenant_id=${tenantId}`, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    cache: 'no-cache'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        log(`✅ API call successful for tenant ${tenantId}: ${data.sessions.length} sessions`, 'success');
+                    } else {
+                        log(`❌ API call failed for tenant ${tenantId}: ${data.error}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    log(`❌ API call error for tenant ${tenantId}: ${error.message}`, 'error');
+                });
+            });
+        }
+        
+        // Test immediately
+        testAutoRefresh();
+        
+        // Test every 5 seconds
+        setInterval(testAutoRefresh, 5000);
+        
+        // Check if adminDashboardUpdates is available
+        setTimeout(() => {
+            if (typeof window.adminDashboardUpdates !== 'undefined') {
+                log('✅ adminDashboardUpdates object is available', 'success');
+                log('Available methods: ' + Object.keys(window.adminDashboardUpdates).join(', '), 'info');
+            } else {
+                log('❌ adminDashboardUpdates object is not available', 'error');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
