@@ -348,7 +348,7 @@ class OpenVPNManager
 
         foreach ($clients as $cn => $c) {
             [$ip] = explode(':', $c['real'], 2);
-            [$country, $city] = GeoIP::lookup($ip);
+            [$country, $city] = \App\GeoIP::lookup($ip);
 
             $vip   = $routes[$cn] ?? null;
             $since = $c['since'] ? date('Y-m-d H:i:s', $c['since']) : null;
