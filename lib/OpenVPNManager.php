@@ -54,7 +54,17 @@ class OpenVPNManager
         try {
             // 3) Volume + network (idempotent)
             DockerCLI::createVolume($vol);  $createdVolume  = true;
-            DockerCLI::createNetwork($net); $createdNetwork = true;
+            
+            // Create bridge interface for VMware integration
+            $bridgeName = "br-tenant-$tenantId";
+            if (!DockerCLI::bridgeInterfaceExists($bridgeName)) {
+                DockerCLI::createBridgeInterface($bridgeName, $subnet);
+                DockerCLI::configureBridgeRouting($bridgeName, $subnet);
+            }
+            
+            // Create Docker network with bridge configuration
+            DockerCLI::createBridgeNetwork($net, $subnet, $bridgeName);
+            $createdNetwork = true;
 
             // 4) Generează config (fără -p push; le adăugăm manual, compatibil cu ovpn 2.4)
             $dns1 = DEFAULT_DNS1;
@@ -137,7 +147,7 @@ class OpenVPNManager
 
             return $tenantId;
         } catch (\Throwable $e) {
-            // Cleanup „best effort”
+            // Cleanup „best effort"
             if ($createdContainer) {
                 try { DockerCLI::rm($ctr); } catch (\Throwable $_) {}
             }
@@ -145,13 +155,19 @@ class OpenVPNManager
                 try { DockerCLI::run('docker volume rm ' . escapeshellarg($vol) . ' || true'); } catch (\Throwable $_) {}
             }
             if ($createdNetwork) {
-                try { DockerCLI::run('docker network rm ' . escapeshellarg($net) . ' || true'); } catch (\Throwable $_) {}
+                try { 
+                    DockerCLI::run('docker network rm ' . escapeshellarg($net) . ' || true'); 
+                    // Also remove bridge interface
+                    $bridgeName = "br-tenant-$tenantId";
+                    DockerCLI::removeBridgeInterface($bridgeName);
+                } catch (\Throwable $_) {}
             }
             try { $pdo->prepare("DELETE FROM tenants WHERE id=?")->execute([$tenantId]); } catch (\Throwable $_) {}
 
             throw $e;
         }
     }
+
 
     /**
      * Copiază scripts/nat-ensure.sh în container și aplică MASQUERADE pentru subrețele.
@@ -404,8 +420,12 @@ class OpenVPNManager
           // 2) șterge volumul și rețeaua (idempotent)
           try { DockerCLI::removeVolume($t['docker_volume']); }   catch (\Throwable $e) {}
           try { DockerCLI::removeNetwork($t['docker_network']); } catch (\Throwable $e) {}
+          
+          // 3) șterge bridge interface pentru VMware integration
+          $bridgeName = "br-tenant-$tenantId";
+          try { DockerCLI::removeBridgeInterface($bridgeName); } catch (\Throwable $e) {}
 
-          // 3) șterge rândul din DB (FK-urile cascaded curăță copilul)
+          // 4) șterge rândul din DB (FK-urile cascaded curăță copilul)
           // This will automatically delete:
           // - client_users (ON DELETE CASCADE)
           // - vpn_users (ON DELETE CASCADE) 

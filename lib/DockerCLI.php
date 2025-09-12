@@ -82,6 +82,86 @@ final class DockerCLI
         );
     }
 
+    /** Creează rețeaua cu configurație bridge personalizată pentru VMware integration. */
+    public static function createBridgeNetwork(string $name, string $subnet, string $bridgeName): void
+    {
+        // Check if network already exists
+        try {
+            self::run('docker network inspect ' . escapeshellarg($name) . ' >/dev/null 2>&1');
+            return; // Network already exists
+        } catch (\RuntimeException $e) {
+            // Network doesn't exist, create it
+        }
+
+        $gateway = explode('/', $subnet)[0];
+        $cmd = sprintf(
+            'docker network create --driver bridge --subnet=%s --gateway=%s --opt com.docker.network.bridge.name=%s %s',
+            escapeshellarg($subnet),
+            escapeshellarg($gateway),
+            escapeshellarg($bridgeName),
+            escapeshellarg($name)
+        );
+        
+        self::run($cmd);
+    }
+
+    /** Creează interfața bridge pentru VMware integration. */
+    public static function createBridgeInterface(string $bridgeName, string $subnet): void
+    {
+        $gateway = explode('/', $subnet)[0];
+        $cidr = explode('/', $subnet)[1];
+        
+        $commands = [
+            "ip link add name $bridgeName type bridge",
+            "ip addr add $gateway/$cidr dev $bridgeName",
+            "ip link set $bridgeName up"
+        ];
+        
+        foreach ($commands as $cmd) {
+            self::run("sudo $cmd");
+        }
+    }
+
+    /** Verifică dacă interfața bridge există. */
+    public static function bridgeInterfaceExists(string $bridgeName): bool
+    {
+        try {
+            self::run("ip link show $bridgeName >/dev/null 2>&1");
+            return true;
+        } catch (\RuntimeException $e) {
+            return false;
+        }
+    }
+
+    /** Șterge interfața bridge. */
+    public static function removeBridgeInterface(string $bridgeName): void
+    {
+        try {
+            self::run("sudo ip link set $bridgeName down");
+            self::run("sudo ip link delete $bridgeName");
+        } catch (\RuntimeException $e) {
+            // Bridge might not exist, ignore error
+        }
+    }
+
+    /** Configurează routing și NAT pentru bridge. */
+    public static function configureBridgeRouting(string $bridgeName, string $subnet, string $externalInterface = 'eth0'): void
+    {
+        $commands = [
+            "iptables -t nat -A POSTROUTING -s $subnet -o $externalInterface -j MASQUERADE",
+            "iptables -A FORWARD -i $bridgeName -o $externalInterface -j ACCEPT",
+            "iptables -A FORWARD -i $externalInterface -o $bridgeName -m state --state RELATED,ESTABLISHED -j ACCEPT"
+        ];
+        
+        foreach ($commands as $cmd) {
+            try {
+                self::run("sudo $cmd");
+            } catch (\RuntimeException $e) {
+                // Rule might already exist, continue
+            }
+        }
+    }
+
     /** Creează volumul dacă nu există deja (idempotent). */
     public static function createVolume(string $name): void
     {
