@@ -474,9 +474,9 @@ $csrf = Auth::csrf();
             return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
         }
 
-        // Update every 3 seconds for more responsive updates
+        // Update every 2 seconds for more responsive updates
         updateSessionData();
-        setInterval(updateSessionData, 3000);
+        setInterval(updateSessionData, 2000);
     </script>
 </body>
 </html>

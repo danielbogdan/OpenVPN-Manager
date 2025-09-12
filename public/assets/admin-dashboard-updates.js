@@ -46,15 +46,26 @@
         const tenantElements = document.querySelectorAll('[data-tenant-id]');
         const tenantIds = Array.from(tenantElements).map(el => el.getAttribute('data-tenant-id')).filter((id, index, arr) => arr.indexOf(id) === index);
         
+        console.log(`Updating sessions for ${tenantIds.length} tenants:`, tenantIds);
+        
         tenantIds.forEach(tenantId => {
             fetch(`/actions/get_live_sessions.php?tenant_id=${tenantId}`, {
                 method: 'GET',
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                cache: 'no-cache'
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     updateTenantSessionElements(tenantId, data.sessions, data.stats);
+                    console.log(`Updated sessions for tenant ${tenantId}:`, data.sessions.length, 'sessions');
+                } else {
+                    console.error(`Failed to update sessions for tenant ${tenantId}:`, data.error);
                 }
             })
             .catch(error => {
@@ -176,8 +187,8 @@
         // Update immediately
         updateClientStatus();
         
-        // Then update every 3 seconds
-        updateInterval = setInterval(updateClientStatus, 3000);
+        // Then update every 2 seconds for more responsive updates
+        updateInterval = setInterval(updateClientStatus, 2000);
     }
     
     // Function to stop auto-updates

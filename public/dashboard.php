@@ -209,6 +209,10 @@ foreach ($tenants as $tenant) {
     <div class="card">
       <div class="card-header">
         <h2>🏢 Tenants Overview</h2>
+        <button id="manual-refresh-btn" class="btn btn-secondary btn-sm" onclick="window.adminDashboardUpdates.update()">
+          <span class="btn-icon">🔄</span>
+          Refresh
+        </button>
       </div>
       
       <div class="card-content">
@@ -238,13 +242,13 @@ foreach ($tenants as $tenant) {
             </div>
           <?php else: ?>
             <?php foreach ($tenantStats as $tenant): ?>
-              <div class="tenant-overview-item">
+              <div class="tenant-overview-item" data-tenant-id="<?= $tenant['id'] ?>">
                 <div class="tenant-overview-info">
                   <div class="tenant-overview-name"><?= htmlspecialchars($tenant['name']) ?></div>
                   <div class="tenant-overview-stats">
                     <span class="tenant-stat">👥 VPN Profile Users: <?= $tenant['vpn_users'] ?></span>
                     <span class="tenant-stat">👨‍💼 Portal Client Users: <?= $tenant['client_users'] ?></span>
-                    <span class="tenant-stat">🟢 Active Sessions: <?= $tenant['active_sessions'] ?></span>
+                    <span class="tenant-stat">🟢 Active Sessions: <span class="session-count"><?= $tenant['active_sessions'] ?></span></span>
                   </div>
                 </div>
                 <div class="tenant-overview-actions">
