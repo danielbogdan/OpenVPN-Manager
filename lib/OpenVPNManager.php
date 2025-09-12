@@ -310,22 +310,33 @@ class OpenVPNManager
 
         foreach ($lines as $line) {
             $line = trim($line);
-            if ($line === 'OpenVPN CLIENT LIST') { $stage = 'clients'; continue; }
-            if ($line === 'ROUTING TABLE')       { $stage = 'routes';  continue; }
-            if ($line === 'GLOBAL STATS' || $line === 'END') { $stage=''; continue; }
+            if (strpos($line, 'CLIENT_LIST,Common Name,Real Address,') === 0) { $stage = 'clients'; continue; }
+            if (strpos($line, 'ROUTING_TABLE,Virtual Address,Common Name,') === 0) { $stage = 'routes';  continue; }
+            if (strpos($line, 'GLOBAL_STATS,') === 0 || $line === 'END') { $stage=''; continue; }
 
-            if ($stage === 'clients' && strpos($line, ',') !== false && stripos($line, 'Common Name') === false) {
-                [$cn, $real, $br, $bs, $since] = array_map('trim', explode(',', $line));
-                $clients[$cn] = [
-                    'real'  => $real,
-                    'br'    => (int)$br,
-                    'bs'    => (int)$bs,
-                    'since' => strtotime($since) ?: null
-                ];
+            if ($stage === 'clients' && strpos($line, 'CLIENT_LIST,') === 0) {
+                $parts = explode(',', $line);
+                if (count($parts) >= 8) {
+                    $cn = $parts[1];
+                    $real = $parts[2];
+                    $br = (int)$parts[5];
+                    $bs = (int)$parts[6];
+                    $since = $parts[7];
+                    $clients[$cn] = [
+                        'real'  => $real,
+                        'br'    => $br,
+                        'bs'    => $bs,
+                        'since' => strtotime($since) ?: null
+                    ];
+                }
             }
-            if ($stage === 'routes' && strpos($line, ',') !== false && stripos($line, 'Virtual Address') === false) {
-                [$vip, $cn, $real, $last] = array_map('trim', explode(',', $line));
-                $routes[$cn] = $vip;
+            if ($stage === 'routes' && strpos($line, 'ROUTING_TABLE,') === 0) {
+                $parts = explode(',', $line);
+                if (count($parts) >= 3) {
+                    $vip = $parts[1];
+                    $cn = $parts[2];
+                    $routes[$cn] = $vip;
+                }
             }
         }
 
