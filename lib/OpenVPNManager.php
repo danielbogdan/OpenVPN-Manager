@@ -307,7 +307,10 @@ class OpenVPNManager
         $raw = implode("\n", $out);
 
         $pdo->prepare("DELETE FROM sessions WHERE tenant_id=?")->execute([$tenantId]);
-        if (!$raw) return;
+        if (!$raw) {
+            error_log("OpenVPN status file is empty for tenant $tenantId");
+            return;
+        }
 
         $lines   = explode("\n", $raw);
         $stage   = '';
@@ -359,12 +362,16 @@ class OpenVPNManager
             $user = $userStmt->fetch();
             $userId = $user ? $user['id'] : null;
 
-            $stmt = $pdo->prepare(
-                "INSERT INTO sessions(tenant_id,user_id,common_name,real_address,virtual_address,
-                 bytes_received,bytes_sent,since,geo_country,geo_city,last_seen)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,NOW())"
-            );
-            $stmt->execute([$tenantId, $userId, $cn, $c['real'], $vip, $c['br'], $c['bs'], $since, $country, $city]);
+            try {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO sessions(tenant_id,user_id,common_name,real_address,virtual_address,
+                     bytes_received,bytes_sent,since,geo_country,geo_city,last_seen)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,NOW())"
+                );
+                $stmt->execute([$tenantId, $userId, $cn, $c['real'], $vip, $c['br'], $c['bs'], $since, $country, $city]);
+            } catch (\Throwable $e) {
+                error_log("Failed to insert session for $cn: " . $e->getMessage());
+            }
         }
     }
       
