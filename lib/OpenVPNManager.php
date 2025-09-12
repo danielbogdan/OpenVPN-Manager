@@ -88,7 +88,7 @@ class OpenVPNManager
                 'push "redirect-gateway def1 bypass-dhcp"',
                 'push "dhcp-option DNS ' . addslashes($dns1) . '"',
                 'push "dhcp-option DNS ' . addslashes($dns2) . '"',
-                'status /etc/openvpn/openvpn-status.log',
+                'status /tmp/openvpn-status.log',
                 'status-version 2',
             ] as $line) {
                 $cmd = sprintf(
@@ -295,7 +295,7 @@ class OpenVPNManager
         $pdo = DB::pdo();
         $t   = self::getTenant($tenantId);
         $ctr = $t['docker_container'];
-        $statusFile = $t['status_path'] ?: '/etc/openvpn/openvpn-status.log';
+        $statusFile = $t['status_path'] ?: '/tmp/openvpn-status.log';
 
         $out = DockerCLI::exec($ctr, "test -f " . escapeshellarg($statusFile) . " && cat " . escapeshellarg($statusFile) . " || true");
         $raw = implode("\n", $out);
