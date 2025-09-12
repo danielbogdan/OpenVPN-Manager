@@ -8,7 +8,7 @@
     let isPageVisible = true;
     let lastUpdateTime = null;
     
-    // Function to update client user status
+    // Function to update client user status and session data
     function updateClientStatus() {
         if (!isPageVisible) {
             return; // Don't update if page is not visible
@@ -17,6 +17,7 @@
         // Show updating indicator
         showUpdateIndicator();
         
+        // Update client status
         fetch('/actions/get_client_status.php', {
             method: 'GET',
             credentials: 'same-origin'
@@ -33,11 +34,61 @@
         })
         .catch(error => {
             console.error('Error updating client status:', error);
-        })
-        .finally(() => {
-            // Hide updating indicator
-            hideUpdateIndicator();
         });
+        
+        // Update session data for all tenants
+        updateAllTenantSessions();
+    }
+    
+    // Function to update session data for all tenants
+    function updateAllTenantSessions() {
+        // Get all tenant IDs from the page
+        const tenantElements = document.querySelectorAll('[data-tenant-id]');
+        const tenantIds = Array.from(tenantElements).map(el => el.getAttribute('data-tenant-id')).filter((id, index, arr) => arr.indexOf(id) === index);
+        
+        tenantIds.forEach(tenantId => {
+            fetch(`/actions/get_live_sessions.php?tenant_id=${tenantId}`, {
+                method: 'GET',
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateTenantSessionElements(tenantId, data.sessions, data.stats);
+                }
+            })
+            .catch(error => {
+                console.error(`Error updating sessions for tenant ${tenantId}:`, error);
+            });
+        });
+    }
+    
+    // Function to update tenant session elements
+    function updateTenantSessionElements(tenantId, sessions, stats) {
+        // Update session count in tenant cards
+        const tenantCard = document.querySelector(`[data-tenant-id="${tenantId}"]`);
+        if (tenantCard) {
+            const sessionCountElement = tenantCard.querySelector('.session-count');
+            if (sessionCountElement) {
+                sessionCountElement.textContent = `${sessions.length} active`;
+            }
+            
+            // Update session list
+            const sessionList = tenantCard.querySelector('.session-list');
+            if (sessionList) {
+                if (sessions.length === 0) {
+                    sessionList.innerHTML = '<div class="no-sessions">No active sessions</div>';
+                } else {
+                    sessionList.innerHTML = sessions.map(session => `
+                        <div class="session-item">
+                            <span class="session-user">${session.common_name}</span>
+                            <span class="session-ip">${session.virtual_address || 'N/A'}</span>
+                            <span class="session-location">${session.geo_country || 'Unknown'}</span>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
     }
     
     // Function to show update indicator

@@ -403,6 +403,80 @@ $csrf = Auth::csrf();
 
         updateLiveClock();
         setInterval(updateLiveClock, 1000);
+
+        // Live session updates
+        function updateSessionData() {
+            const tenantId = <?= $tenantId ?>;
+            
+            fetch(`/actions/get_live_sessions.php?tenant_id=${tenantId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateStatsCards(data.stats);
+                        updateConnectionsList(data.sessions);
+                        updateTrafficChart(data.sessions);
+                        updateGeoMap(data.sessions);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating session data:', error);
+                });
+        }
+
+        function updateStatsCards(stats) {
+            // Update Active Users
+            const activeUsersEl = document.querySelector('.stat-card:nth-child(1) .stat-value');
+            if (activeUsersEl) activeUsersEl.textContent = stats.active_users;
+
+            // Update Total Traffic
+            const totalTrafficEl = document.querySelector('.stat-card:nth-child(2) .stat-value');
+            if (totalTrafficEl) totalTrafficEl.textContent = formatBytes(stats.total_traffic);
+
+            // Update Downloaded
+            const downloadedEl = document.querySelector('.stat-card:nth-child(3) .stat-value');
+            if (downloadedEl) downloadedEl.textContent = formatBytes(stats.downloaded);
+
+            // Update Uploaded
+            const uploadedEl = document.querySelector('.stat-card:nth-child(4) .stat-value');
+            if (uploadedEl) uploadedEl.textContent = formatBytes(stats.uploaded);
+        }
+
+        function updateConnectionsList(sessions) {
+            const connectionsList = document.querySelector('.connections-list');
+            if (!connectionsList) return;
+
+            if (sessions.length === 0) {
+                connectionsList.innerHTML = '<div class="no-connections">No active connections</div>';
+                return;
+            }
+
+            connectionsList.innerHTML = sessions.map(session => `
+                <div class="connection-item">
+                    <div class="connection-info">
+                        <span class="connection-name">${session.common_name}</span>
+                        <span class="connection-ip">${session.virtual_address || 'N/A'}</span>
+                    </div>
+                    <div class="connection-location">
+                        ${session.geo_country || 'Unknown'} • ${session.geo_city || 'Unknown City'}
+                    </div>
+                    <div class="connection-time">
+                        ${new Date(session.last_seen).toLocaleTimeString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Update every 5 seconds
+        updateSessionData();
+        setInterval(updateSessionData, 5000);
     </script>
 </body>
 </html>
