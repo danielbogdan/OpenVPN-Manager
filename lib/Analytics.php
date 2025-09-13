@@ -52,8 +52,8 @@ class Analytics
         // Get hourly traffic data for charts
         $hourlyData = self::getHourlyTrafficData($tenantId, $hours);
         
-        // Get application breakdown (mock data for now)
-        $appBreakdown = self::getMockApplicationBreakdown($tenantId, $hours);
+        // Get real application breakdown from traffic analysis
+        $appBreakdown = self::getRealApplicationBreakdown($tenantId, $hours);
         
         // Get geographic distribution
         $geoDistribution = TrafficMonitor::getGeographicDistribution($tenantId, null, $hours);
@@ -343,11 +343,12 @@ class Analytics
             'messaging' => ['name' => 'Messaging', 'color' => '#06B6D4', 'icon' => '💬'],
             'development' => ['name' => 'Development', 'color' => '#84CC16', 'icon' => '💻'],
             
-            // New mock data keys
+            // Real application classification keys
             'Web Browsing' => ['name' => 'Web Browsing', 'color' => '#3B82F6', 'icon' => '🌐'],
             'Video Streaming' => ['name' => 'Video Streaming', 'color' => '#EF4444', 'icon' => '📺'],
             'File Transfer' => ['name' => 'File Transfer', 'color' => '#F59E0B', 'icon' => '📁'],
             'Email' => ['name' => 'Email', 'color' => '#10B981', 'icon' => '📧'],
+            'System Services' => ['name' => 'System Services', 'color' => '#6B7280', 'icon' => '⚙️'],
             'Social Media' => ['name' => 'Social Media', 'color' => '#8B5CF6', 'icon' => '👥'],
             'Gaming' => ['name' => 'Gaming', 'color' => '#EC4899', 'icon' => '🎮'],
             'Other' => ['name' => 'Other', 'color' => '#6B7280', 'icon' => '📊'],
@@ -409,5 +410,144 @@ class Analytics
         }
         
         return $breakdown;
+    }
+    
+    /**
+     * Get real application breakdown by analyzing traffic patterns
+     */
+    private static function getRealApplicationBreakdown(int $tenantId, int $hours): array
+    {
+        $pdo = DB::pdo();
+        
+        // Get session data with traffic patterns
+        $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+        $stmt = $pdo->prepare("
+            SELECT 
+                common_name,
+                real_address,
+                bytes_received,
+                bytes_sent,
+                last_seen,
+                geo_country,
+                geo_city
+            FROM sessions 
+            WHERE tenant_id = ? AND last_seen >= ?
+            ORDER BY last_seen DESC
+        ");
+        $stmt->execute([$tenantId, $cutoffTime]);
+        $sessions = $stmt->fetchAll();
+        
+        if (empty($sessions)) {
+            return [];
+        }
+        
+        // Analyze traffic patterns to classify applications
+        $appTraffic = [];
+        $totalTraffic = 0;
+        
+        foreach ($sessions as $session) {
+            $totalBytes = $session['bytes_received'] + $session['bytes_sent'];
+            $totalTraffic += $totalBytes;
+            
+            // Extract IP and port from real_address (format: "IP:PORT")
+            $realAddress = $session['real_address'];
+            $port = null;
+            if (strpos($realAddress, ':') !== false) {
+                $parts = explode(':', $realAddress);
+                $port = end($parts);
+            }
+            
+            // Classify based on traffic patterns and port analysis
+            $appType = self::classifyTrafficByPattern($session, $port);
+            
+            if (!isset($appTraffic[$appType])) {
+                $appTraffic[$appType] = [
+                    'total_bytes' => 0,
+                    'sessions' => 0,
+                    'users' => []
+                ];
+            }
+            
+            $appTraffic[$appType]['total_bytes'] += $totalBytes;
+            $appTraffic[$appType]['sessions']++;
+            $appTraffic[$appType]['users'][$session['common_name']] = true;
+        }
+        
+        // Convert to the expected format
+        $breakdown = [];
+        foreach ($appTraffic as $appType => $data) {
+            $breakdown[] = [
+                'application_type' => $appType,
+                'total_bytes' => $data['total_bytes'],
+                'unique_users' => count($data['users']),
+                'connection_count' => $data['sessions']
+            ];
+        }
+        
+        // Sort by total bytes descending
+        usort($breakdown, function($a, $b) {
+            return $b['total_bytes'] - $a['total_bytes'];
+        });
+        
+        return $breakdown;
+    }
+    
+    /**
+     * Classify traffic based on patterns and port analysis
+     */
+    private static function classifyTrafficByPattern(array $session, ?string $port): string
+    {
+        $bytesReceived = $session['bytes_received'];
+        $bytesSent = $session['bytes_sent'];
+        $totalBytes = $bytesReceived + $bytesSent;
+        
+        // Calculate upload/download ratio
+        $uploadRatio = $bytesSent / max($totalBytes, 1);
+        $downloadRatio = $bytesReceived / max($totalBytes, 1);
+        
+        // Port-based classification
+        if ($port) {
+            $portNum = (int)$port;
+            
+            // Common application ports
+            if (in_array($portNum, [80, 443, 8080, 8443])) {
+                return 'Web Browsing';
+            }
+            if (in_array($portNum, [21, 22, 990, 989])) {
+                return 'File Transfer';
+            }
+            if (in_array($portNum, [25, 110, 143, 993, 995, 587, 465])) {
+                return 'Email';
+            }
+            if (in_array($portNum, [53, 67, 68, 123, 161, 162])) {
+                return 'System Services';
+            }
+            if (in_array($portNum, [20, 21, 22, 23, 69, 115, 989, 990])) {
+                return 'File Transfer';
+            }
+        }
+        
+        // Traffic pattern analysis
+        if ($downloadRatio > 0.8) {
+            // High download ratio - likely streaming or file download
+            if ($totalBytes > 50 * 1024 * 1024) { // > 50MB
+                return 'Video Streaming';
+            } else {
+                return 'File Transfer';
+            }
+        } elseif ($uploadRatio > 0.6) {
+            // High upload ratio - likely file upload or backup
+            return 'File Transfer';
+        } elseif ($downloadRatio > 0.6) {
+            // Moderate download - likely web browsing
+            return 'Web Browsing';
+        } else {
+            // Balanced traffic - could be various applications
+            if ($totalBytes > 10 * 1024 * 1024) { // > 10MB
+                return 'Video Streaming';
+            } else {
+                return 'Web Browsing';
+            }
+        }
     }
 }
