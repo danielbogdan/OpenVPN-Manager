@@ -86,10 +86,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   since TIMESTAMP NULL,
   geo_country VARCHAR(64) DEFAULT NULL,
   geo_city VARCHAR(64) DEFAULT NULL,
+  geo_lat DECIMAL(10, 8) DEFAULT NULL,
+  geo_lon DECIMAL(11, 8) DEFAULT NULL,
   last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   KEY idx_tenant_cn (tenant_id, common_name),
   KEY idx_tenant_user (tenant_id, user_id),
   KEY idx_last_seen (last_seen),
+  KEY idx_geo_coords (geo_lat, geo_lon),
   CONSTRAINT fk_sess_tenant
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_sess_user
