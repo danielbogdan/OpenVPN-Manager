@@ -28,12 +28,12 @@ class OpenVPNManager
         $ph = 'pending_' . bin2hex(random_bytes(6));
         $stmt = $pdo->prepare(
             "INSERT INTO tenants (name,public_ip,listen_port,subnet_cidr,nat_enabled,
-             docker_volume,docker_container,docker_network)
-             VALUES (?,?,?,?,?,?,?,?)"
+             docker_volume,docker_container,docker_network,status_path)
+             VALUES (?,?,?,?,?,?,?,?,?)"
         );
         $stmt->execute([
             $name, $publicIp, $port, $subnet, $nat ? 1 : 0,
-            "$ph-vol", "$ph-ctr", "$ph-net"
+            "$ph-vol", "$ph-ctr", "$ph-net", "/tmp/openvpn-status.log"
         ]);
         $tenantId = (int)$pdo->lastInsertId();
 
