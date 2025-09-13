@@ -14,8 +14,6 @@
             return; // Don't update if page is not visible
         }
         
-        // Show updating indicator
-        showUpdateIndicator();
         
         // Update client status
         fetch('/actions/get_client_status.php', {
@@ -107,43 +105,6 @@
         }
     }
     
-    // Function to show update indicator
-    function showUpdateIndicator() {
-        let indicator = document.getElementById('update-indicator');
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'update-indicator';
-            indicator.innerHTML = '🔄';
-            indicator.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: rgba(59, 130, 246, 0.9);
-                color: white;
-                padding: 8px 12px;
-                border-radius: 20px;
-                font-size: 14px;
-                z-index: 1000;
-                opacity: 0;
-                transition: opacity 0.3s ease;
-            `;
-            document.body.appendChild(indicator);
-        }
-        indicator.style.opacity = '1';
-    }
-    
-    // Function to hide update indicator
-    function hideUpdateIndicator() {
-        const indicator = document.getElementById('update-indicator');
-        if (indicator) {
-            indicator.style.opacity = '0';
-            setTimeout(() => {
-                if (indicator.parentNode) {
-                    indicator.parentNode.removeChild(indicator);
-                }
-            }, 300);
-        }
-    }
     
     // Function to update the DOM elements with new status
     function updateClientUserElements(clientUsers) {
