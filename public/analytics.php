@@ -269,7 +269,7 @@ $csrf = Auth::csrf();
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const total = context.dataset.data.reduce(function(a, b) { return a + b; }, 0);
                                 const percentage = ((context.parsed / total) * 100).toFixed(1);
                                 return context.label + ': ' + formatBytes(context.parsed) + ' (' + percentage + '%)';
                             }
