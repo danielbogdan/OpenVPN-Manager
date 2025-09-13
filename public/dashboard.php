@@ -456,8 +456,84 @@ $countryCoordinates = [
     'CM' => [7.3697, 12.3547]
 ];
 
-// Make country coordinates globally accessible
+// Country name to country code mapping
+$countryNameToCode = [
+    'Romania' => 'RO',
+    'United States' => 'US',
+    'Germany' => 'DE',
+    'France' => 'FR',
+    'United Kingdom' => 'GB',
+    'Italy' => 'IT',
+    'Spain' => 'ES',
+    'Netherlands' => 'NL',
+    'Poland' => 'PL',
+    'Czech Republic' => 'CZ',
+    'Hungary' => 'HU',
+    'Bulgaria' => 'BG',
+    'Greece' => 'GR',
+    'Portugal' => 'PT',
+    'Belgium' => 'BE',
+    'Austria' => 'AT',
+    'Switzerland' => 'CH',
+    'Sweden' => 'SE',
+    'Norway' => 'NO',
+    'Denmark' => 'DK',
+    'Finland' => 'FI',
+    'Canada' => 'CA',
+    'Australia' => 'AU',
+    'Japan' => 'JP',
+    'South Korea' => 'KR',
+    'China' => 'CN',
+    'India' => 'IN',
+    'Brazil' => 'BR',
+    'Mexico' => 'MX',
+    'Argentina' => 'AR',
+    'Chile' => 'CL',
+    'Colombia' => 'CO',
+    'Peru' => 'PE',
+    'Venezuela' => 'VE',
+    'Ecuador' => 'EC',
+    'Bolivia' => 'BO',
+    'Paraguay' => 'PY',
+    'Uruguay' => 'UY',
+    'Russia' => 'RU',
+    'Ukraine' => 'UA',
+    'Belarus' => 'BY',
+    'Moldova' => 'MD',
+    'Turkey' => 'TR',
+    'Israel' => 'IL',
+    'Saudi Arabia' => 'SA',
+    'United Arab Emirates' => 'AE',
+    'Egypt' => 'EG',
+    'South Africa' => 'ZA',
+    'Nigeria' => 'NG',
+    'Kenya' => 'KE',
+    'Morocco' => 'MA',
+    'Algeria' => 'DZ',
+    'Tunisia' => 'TN',
+    'Libya' => 'LY',
+    'Sudan' => 'SD',
+    'Ethiopia' => 'ET',
+    'Ghana' => 'GH',
+    'Ivory Coast' => 'CI',
+    'Senegal' => 'SN',
+    'Mali' => 'ML',
+    'Burkina Faso' => 'BF',
+    'Niger' => 'NE',
+    'Chad' => 'TD',
+    'Cameroon' => 'CM',
+    'Central African Republic' => 'CF',
+    'Democratic Republic of the Congo' => 'CD',
+    'Republic of the Congo' => 'CG',
+    'Gabon' => 'GA',
+    'Equatorial Guinea' => 'GQ',
+    'Sao Tome and Principe' => 'ST',
+    'Angola' => 'AO'
+];
+
+// Make country coordinates and mapping globally accessible
 echo "window.countryCoordinates = " . json_encode($countryCoordinates) . ";\n";
+echo "window.countryNameToCode = " . json_encode($countryNameToCode) . ";\n";
 
 // Wait for map to be fully loaded before controlling overlay
 echo "map.whenReady(function() {\n";
@@ -593,11 +669,14 @@ function updateGlobalMap() {
             const markerGroups = {};
             
             data.sessions.forEach(session => {
-                const countryCode = session.geo_country;
+                const countryName = session.geo_country;
                 const city = session.geo_city || 'Unknown City';
                 const realAddress = session.real_address;
                 const commonName = session.common_name;
                 const tenantId = session.tenant_id;
+                
+                // Convert country name to country code
+                const countryCode = window.countryNameToCode && window.countryNameToCode[countryName] ? window.countryNameToCode[countryName] : countryName;
                 
                 if (countryCode && window.countryCoordinates && window.countryCoordinates[countryCode]) {
                     const coords = [...window.countryCoordinates[countryCode]];
@@ -621,7 +700,7 @@ function updateGlobalMap() {
                         fillOpacity: 0.8
                     }).bindPopup(`
                         <div style='min-width: 200px;'>
-                            <strong>🌍 ${countryCode} - ${city}</strong><br>
+                            <strong>🌍 ${countryName} - ${city}</strong><br>
                             <strong>👤 User:</strong> ${commonName}<br>
                             <strong>🌐 IP:</strong> ${realAddress}<br>
                             <strong>🏢 Tenant:</strong> ${tenantId}<br>
@@ -654,6 +733,11 @@ function updateGlobalMap() {
                 const radius = Math.max(12, Math.min(30, totalConnections * 3));
                 const color = totalConnections > 5 ? '#10b981' : '#3b82f6';
                 
+                // Find country name from country code
+                const countryName = Object.keys(window.countryNameToCode || {}).find(name => 
+                    window.countryNameToCode[name] === countryCode
+                ) || countryCode;
+                
                 const summaryMarker = L.circleMarker(coords, {
                     radius: radius,
                     fillColor: color,
@@ -663,7 +747,7 @@ function updateGlobalMap() {
                     fillOpacity: 0.6
                 }).bindPopup(`
                     <div style='min-width: 200px;'>
-                        <strong>🌍 ${countryCode} Summary</strong><br>
+                        <strong>🌍 ${countryName} Summary</strong><br>
                         <strong>📊 Total Connections:</strong> ${totalConnections}<br>
                         <strong>🏢 Active Tenants:</strong> ${tenantCount}<br>
                         <strong>📍 Locations:</strong> ${data.sessions.length} connection points
