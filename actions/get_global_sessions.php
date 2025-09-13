@@ -9,6 +9,9 @@ use App\OpenVPNManager;
 header('Content-Type: application/json');
 
 try {
+    // Debug: Log that we're starting
+    error_log("get_global_sessions.php: Starting");
+    
     Auth::require();
     
     $pdo = DB::pdo();
@@ -16,14 +19,8 @@ try {
     // Get all tenants
     $tenants = $pdo->query("SELECT id FROM tenants ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
     
-    // Refresh sessions for all tenants
-    foreach ($tenants as $tenantId) {
-        try {
-            OpenVPNManager::refreshSessions($tenantId);
-        } catch (\Throwable $e) {
-            error_log("Failed to refresh sessions for tenant $tenantId: " . $e->getMessage());
-        }
-    }
+    // Note: We don't refresh sessions here to avoid hanging
+    // Sessions are already being refreshed by individual tenant calls
     
     // Get all active sessions from all tenants (last 2 minutes)
     $stmt = $pdo->prepare("
