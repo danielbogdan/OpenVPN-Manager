@@ -294,6 +294,10 @@ foreach ($tenants as $tenant) {
 </main>
 
 <script>
+// Global map variable for updates
+let globalMap = null;
+let mapMarkers = [];
+
 // World Map
 try {
     const map = L.map('worldMap').setView([20, 0], 2);
@@ -555,10 +559,6 @@ echo "});\n";
     document.getElementById('mapNoData').style.display = 'none';
 }
 
-
-// Global map variable for updates
-let globalMap = null;
-let mapMarkers = [];
 
 function refreshMap() {
     location.reload();
