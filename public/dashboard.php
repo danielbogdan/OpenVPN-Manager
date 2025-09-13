@@ -453,7 +453,7 @@ $countryCoordinates = [
 ];
 
 // Make country coordinates globally accessible
-window.countryCoordinates = <?= json_encode($countryCoordinates) ?>;
+echo "window.countryCoordinates = " . json_encode($countryCoordinates) . ";\n";
 
 // Wait for map to be fully loaded before controlling overlay
 echo "map.whenReady(function() {\n";
