@@ -143,11 +143,6 @@ foreach ($tenants as $tenant) {
               <span>Medium Activity</span>
             </div>
           </div>
-          <div id="mapNoData" class="map-no-data">
-            <div class="no-data-icon">🌍</div>
-            <p>No connection data available</p>
-            <small>Connections will appear here once users connect</small>
-          </div>
         </div>
       </div>
     </div>
@@ -535,10 +530,8 @@ $countryNameToCode = [
 echo "window.countryCoordinates = " . json_encode($countryCoordinates) . ";\n";
 echo "window.countryNameToCode = " . json_encode($countryNameToCode) . ";\n";
 
-// Wait for map to be fully loaded before controlling overlay
+// Wait for map to be fully loaded
 echo "map.whenReady(function() {\n";
-echo "    // Hide the no-data overlay by default when map loads\n";
-echo "    document.getElementById('mapNoData').style.display = 'none';\n";
 
 if (!empty($connectionData)) {
     echo "    // Add real-time connection markers to map\n";
@@ -623,16 +616,14 @@ if (!empty($connectionData)) {
         `);\n";
     }
 } else {
-    echo "    // Only show no-data overlay if there's truly no connection data\n";
-    echo "    document.getElementById('mapNoData').style.display = 'block';\n";
+    echo "    // No initial connections: show clean global view\n";
+    echo "    map.setView([20, 0], 2);\n";
 }
 
 echo "});\n";
 ?>
 } catch (error) {
     console.error('Map initialization error:', error);
-    // Fallback: hide overlay if map fails to load
-    document.getElementById('mapNoData').style.display = 'none';
 }
 
 
@@ -662,8 +653,6 @@ function updateGlobalMap() {
     .then(data => {
         console.log('📊 Global map data received:', data);
         if (data.success && data.sessions.length > 0) {
-            // Hide no-data overlay
-            document.getElementById('mapNoData').style.display = 'none';
             
             // Add markers for each connection
             const markerGroups = {};
@@ -800,9 +789,9 @@ function updateGlobalMap() {
                 mapMarkers.push(summaryMarker);
             });
         } else {
-            // Show no-data overlay
-            document.getElementById('mapNoData').style.display = 'block';
-            console.log('⚠️ No active sessions for global map');
+            // No connections: keep global view without overlay
+            globalMap.setView([20, 0], 2);
+            console.log('⚠️ No active sessions for global map - showing clean global view');
         }
         console.log('✅ Global map update completed');
     })
@@ -811,15 +800,7 @@ function updateGlobalMap() {
     });
 }
 
-// Ensure overlay is hidden when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-        const mapNoData = document.getElementById('mapNoData');
-        if (mapNoData) {
-            mapNoData.style.display = 'none';
-        }
-    }, 100);
-});
+// Map is now always clean - no overlay needed
 
 function showCreateTenantForm() {
     const modal = document.getElementById('createTenantModal');
