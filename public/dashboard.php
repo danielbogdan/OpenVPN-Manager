@@ -573,13 +573,18 @@ function updateGlobalMap() {
     mapMarkers = [];
     
     // Fetch real-time connection data
+    console.log('🔄 Starting global map update...');
     fetch('/actions/get_global_sessions.php', {
         method: 'GET',
         credentials: 'same-origin',
         cache: 'no-cache'
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('📡 Global map response received:', response.status, response.statusText);
+        return response.json();
+    })
     .then(data => {
+        console.log('📊 Global map data received:', data);
         if (data.success && data.sessions.length > 0) {
             // Hide no-data overlay
             document.getElementById('mapNoData').style.display = 'none';
@@ -671,10 +676,12 @@ function updateGlobalMap() {
         } else {
             // Show no-data overlay
             document.getElementById('mapNoData').style.display = 'block';
+            console.log('⚠️ No active sessions for global map');
         }
+        console.log('✅ Global map update completed');
     })
     .catch(error => {
-        console.error('Error updating global map:', error);
+        console.error('💥 Error updating global map:', error);
     });
 }
 
