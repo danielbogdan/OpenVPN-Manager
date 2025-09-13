@@ -2,8 +2,7 @@
 
 /* Time Range Container */
 .time-range-container {
-    background: rgba(17, 24, 39, 0.98);
-    backdrop-filter: blur(8px);
+    background: transparent;
     border-bottom: none;
     padding: 16px 24px;
     display: flex;
