@@ -587,9 +587,24 @@ class Analytics
                 return [];
             }
             
-            // Get active network connections from the container
+            // Try multiple methods to get network connections
+            $output = '';
+            
+            // Method 1: netstat
             $cmd = "docker exec {$containerName} netstat -an 2>/dev/null | grep ESTABLISHED | head -20";
             $output = shell_exec($cmd);
+            
+            // Method 2: ss (if netstat fails)
+            if (empty($output)) {
+                $cmd = "docker exec {$containerName} ss -tuln 2>/dev/null | grep ESTAB | head -20";
+                $output = shell_exec($cmd);
+            }
+            
+            // Method 3: /proc/net/tcp (if both fail)
+            if (empty($output)) {
+                $cmd = "docker exec {$containerName} cat /proc/net/tcp 2>/dev/null | head -20";
+                $output = shell_exec($cmd);
+            }
             
             if (empty($output)) {
                 // If no connections found, return empty array
@@ -786,13 +801,71 @@ class Analytics
     }
     
     /**
-     * Return empty array when no real connections are found - no mock data
+     * Create destinations from real traffic when no connections are found
      */
     private static function createDestinationsFromRealTraffic(int $tenantId, int $totalTraffic, int $hours, int $limit): array
     {
-        // If no real connections are found, return empty array
-        // We don't create mock destinations - only show real data
-        return [];
+        $pdo = DB::pdo();
+        
+        // Get session data to get real client information
+        $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+        $stmt = $pdo->prepare("
+            SELECT 
+                common_name,
+                real_address,
+                bytes_received,
+                bytes_sent,
+                last_seen,
+                geo_country,
+                geo_city
+            FROM sessions 
+            WHERE tenant_id = ? AND last_seen >= ?
+            ORDER BY last_seen DESC
+            LIMIT 5
+        ");
+        $stmt->execute([$tenantId, $cutoffTime]);
+        $sessions = $stmt->fetchAll();
+        
+        if (empty($sessions)) {
+            return [];
+        }
+        
+        $destinations = [];
+        $totalSessionTraffic = 0;
+        
+        // Calculate total session traffic
+        foreach ($sessions as $session) {
+            $totalSessionTraffic += $session['bytes_received'] + $session['bytes_sent'];
+        }
+        
+        if ($totalSessionTraffic === 0) {
+            return [];
+        }
+        
+        // Create destinations based on real session data
+        foreach ($sessions as $session) {
+            $sessionTraffic = $session['bytes_received'] + $session['bytes_sent'];
+            $clientIp = explode(':', $session['real_address'])[0];
+            $country = $session['geo_country'] ?? 'Unknown';
+            
+            // Calculate traffic ratio for this session
+            $trafficRatio = $sessionTraffic / $totalSessionTraffic;
+            $sessionTrafficMB = (int)($totalTraffic * $trafficRatio);
+            
+            if ($sessionTrafficMB > 0) {
+                // Use the client's real IP as destination (they're connecting through VPN)
+                $destinations[] = [
+                    'destination_ip' => $clientIp,
+                    'domain' => self::getDomainFromIP($clientIp),
+                    'application_type' => 'VPN Connection',
+                    'country_code' => $country,
+                    'total_bytes' => $sessionTrafficMB,
+                    'connection_count' => 1
+                ];
+            }
+        }
+        
+        return array_slice($destinations, 0, $limit);
     }
     
     /**
