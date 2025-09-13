@@ -360,56 +360,32 @@ class Analytics
     }
     
     /**
-     * Generate mock application breakdown data based on existing traffic
+     * Get real application breakdown from container traffic data only
      */
-    private static function getMockApplicationBreakdown(int $tenantId, int $hours): array
+    private static function getRealApplicationBreakdownOnly(int $tenantId, int $hours): array
     {
         $pdo = DB::pdo();
         
-        // Get total traffic from sessions
-        $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
-        $stmt = $pdo->prepare("
-            SELECT 
-                SUM(bytes_received + bytes_sent) as total_traffic,
-                COUNT(DISTINCT COALESCE(user_id, common_name)) as unique_users
-            FROM sessions 
-            WHERE tenant_id = ? AND last_seen >= ?
-        ");
-        $stmt->execute([$tenantId, $cutoffTime]);
-        $result = $stmt->fetch();
-        
-        $totalTraffic = (int)($result['total_traffic'] ?? 0);
-        $uniqueUsers = (int)($result['unique_users'] ?? 0);
-        
-        if ($totalTraffic === 0) {
+        // Get tenant info to find the container name
+        $tenant = OpenVPNManager::getTenant($tenantId);
+        if (!$tenant) {
             return [];
         }
         
-        // Generate realistic application breakdown based on total traffic
-        $applications = [
-            ['name' => 'Web Browsing', 'percentage' => 35],
-            ['name' => 'Video Streaming', 'percentage' => 25],
-            ['name' => 'File Transfer', 'percentage' => 15],
-            ['name' => 'Email', 'percentage' => 10],
-            ['name' => 'Social Media', 'percentage' => 8],
-            ['name' => 'Gaming', 'percentage' => 4],
-            ['name' => 'Other', 'percentage' => 3]
-        ];
-        
-        $breakdown = [];
-        foreach ($applications as $app) {
-            $bytes = (int)($totalTraffic * $app['percentage'] / 100);
-            if ($bytes > 0) {
-                $breakdown[] = [
-                    'application_type' => $app['name'],
-                    'total_bytes' => $bytes,
-                    'unique_users' => $uniqueUsers,
-                    'connection_count' => $uniqueUsers * rand(1, 3) // Mock connection count
-                ];
-            }
+        $containerName = $tenant['docker_container'];
+        if (!$containerName) {
+            return [];
         }
         
-        return $breakdown;
+        // Get application traffic data from inside the VPN container
+        $appTraffic = self::getContainerTrafficData($containerName, $hours);
+        
+        if (empty($appTraffic)) {
+            // Return empty array if no real traffic data available
+            return [];
+        }
+        
+        return $appTraffic;
     }
     
     /**
@@ -434,8 +410,8 @@ class Analytics
         $appTraffic = self::getContainerTrafficData($containerName, $hours);
         
         if (empty($appTraffic)) {
-            // Fallback to mock data if no real traffic data available
-            return self::getMockApplicationBreakdown($tenantId, $hours);
+            // Return empty array if no real traffic data available
+            return [];
         }
         
         return $appTraffic;
@@ -658,50 +634,39 @@ class Analytics
                 return [];
             }
             
-            // Second pass: distribute real traffic based on connection types
+            // Second pass: distribute real traffic based on actual connections
+            $allConnections = [];
             foreach ($connectionTypes as $appType => $connections) {
-                $connectionCount = count($connections);
-                $trafficRatio = $connectionCount / $totalConnections;
-                
-                // Distribute traffic based on application type and connection count
-                $appTraffic = (int)($totalTraffic * $trafficRatio);
-                
-                // Group by unique IPs for this application type
-                $ipGroups = [];
                 foreach ($connections as $conn) {
-                    $ip = $conn['ip'];
-                    if (!isset($ipGroups[$ip])) {
-                        $ipGroups[$ip] = [
-                            'ip' => $ip,
-                            'connections' => 0,
-                            'ports' => []
-                        ];
-                    }
-                    $ipGroups[$ip]['connections']++;
-                    $ipGroups[$ip]['ports'][] = $conn['port'];
+                    $allConnections[] = $conn;
                 }
+            }
+            
+            $trafficDistribution = self::getRealTrafficDistribution($allConnections, $totalTraffic);
+            
+            foreach ($trafficDistribution as $dist) {
+                $ip = $dist['ip'];
+                $port = $dist['port'];
+                $traffic = $dist['traffic'];
+                $count = $dist['count'];
                 
-                // Create destination entries for each unique IP
-                foreach ($ipGroups as $ipData) {
-                    $ip = $ipData['ip'];
-                    $ipConnections = $ipData['connections'];
-                    $ipTraffic = (int)($appTraffic * ($ipConnections / $connectionCount));
-                    
-                    // Get domain name for the IP
-                    $domain = self::getDomainFromIP($ip);
-                    
-                    // Get country for the IP
-                    $country = self::getCountryFromIP($ip);
-                    
-                    $destinations[] = [
-                        'destination_ip' => $ip,
-                        'domain' => $domain,
-                        'application_type' => $appType,
-                        'country_code' => $country,
-                        'total_bytes' => $ipTraffic,
-                        'connection_count' => $ipConnections
-                    ];
-                }
+                // Get domain name for the IP
+                $domain = self::getDomainFromIP($ip);
+                
+                // Classify application based on port
+                $appType = self::classifyByPort($port);
+                
+                // Get country for the IP
+                $country = self::getCountryFromIP($ip);
+                
+                $destinations[] = [
+                    'destination_ip' => $ip,
+                    'domain' => $domain,
+                    'application_type' => $appType,
+                    'country_code' => $country,
+                    'total_bytes' => $traffic,
+                    'connection_count' => $count
+                ];
             }
             
             return $destinations;
@@ -712,127 +677,6 @@ class Analytics
         }
     }
     
-    /**
-     * Get basic traffic destinations as fallback using real container traffic
-     */
-    private static function getBasicTrafficDestinations(int $tenantId, int $hours, int $limit): array
-    {
-        // Get tenant info to find the container name
-        $tenant = OpenVPNManager::getTenant($tenantId);
-        if (!$tenant) {
-            return [];
-        }
-        
-        $containerName = $tenant['docker_container'];
-        if (!$containerName) {
-            return [];
-        }
-        
-        // Get real traffic data from the container
-        $containerTraffic = self::getContainerTrafficData($containerName, $hours);
-        if (empty($containerTraffic)) {
-            return [];
-        }
-        
-        $totalTraffic = $containerTraffic[0]['total_bytes'] ?? 0;
-        if ($totalTraffic === 0) {
-            return [];
-        }
-        
-        // Get session data to analyze traffic patterns
-        $pdo = DB::pdo();
-        $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
-        $stmt = $pdo->prepare("
-            SELECT 
-                common_name,
-                real_address,
-                bytes_received,
-                bytes_sent,
-                last_seen,
-                geo_country,
-                geo_city
-            FROM sessions 
-            WHERE tenant_id = ? AND last_seen >= ?
-            ORDER BY last_seen DESC
-        ");
-        $stmt->execute([$tenantId, $cutoffTime]);
-        $sessions = $stmt->fetchAll();
-        
-        if (empty($sessions)) {
-            return [];
-        }
-        
-        // Calculate total session traffic for comparison
-        $sessionTraffic = 0;
-        foreach ($sessions as $session) {
-            $sessionTraffic += $session['bytes_received'] + $session['bytes_sent'];
-        }
-        
-        // Use the larger of container traffic or session traffic
-        $realTraffic = max($totalTraffic, $sessionTraffic);
-        
-        // Create destinations based on real traffic patterns
-        $destinations = [];
-        
-        // Analyze the real_address to get client IPs and estimate destinations
-        foreach ($sessions as $session) {
-            $sessionBytes = $session['bytes_received'] + $session['bytes_sent'];
-            $clientIp = explode(':', $session['real_address'])[0];
-            
-            // Get country from client IP
-            $country = $session['geo_country'] ?? 'Unknown';
-            
-            // Calculate traffic ratio for this session
-            $trafficRatio = $sessionBytes / max($realTraffic, 1);
-            
-            // Estimate destinations based on traffic patterns and real traffic
-            if ($sessionBytes > 50 * 1024 * 1024) { // > 50MB
-                $destinations[] = [
-                    'destination_ip' => '142.250.191.14',
-                    'domain' => 'youtube.com',
-                    'application_type' => 'Video Streaming',
-                    'country_code' => $country,
-                    'total_bytes' => (int)($realTraffic * $trafficRatio * 0.6),
-                    'connection_count' => 1
-                ];
-            }
-            
-            if ($sessionBytes > 10 * 1024 * 1024) { // > 10MB
-                $destinations[] = [
-                    'destination_ip' => '8.8.8.8',
-                    'domain' => 'google.com',
-                    'application_type' => 'Web Browsing',
-                    'country_code' => $country,
-                    'total_bytes' => (int)($realTraffic * $trafficRatio * 0.3),
-                    'connection_count' => 1
-                ];
-            }
-            
-            // Always add some system services
-            $destinations[] = [
-                'destination_ip' => '1.1.1.1',
-                'domain' => 'cloudflare.com',
-                'application_type' => 'System Services',
-                'country_code' => $country,
-                'total_bytes' => (int)($realTraffic * $trafficRatio * 0.1),
-                'connection_count' => 1
-            ];
-        }
-        
-        // Merge similar destinations
-        $merged = [];
-        foreach ($destinations as $dest) {
-            $key = $dest['destination_ip'];
-            if (!isset($merged[$key])) {
-                $merged[$key] = $dest;
-            } else {
-                $merged[$key]['total_bytes'] += $dest['total_bytes'];
-                $merged[$key]['connection_count'] += $dest['connection_count'];
-            }
-        }
-        
-        return array_values($merged);
-    }
     
     /**
      * Check if IP is private/local
@@ -903,29 +747,36 @@ class Analytics
     }
     
     /**
-     * Estimate traffic by port
+     * Get real traffic distribution based on actual connection analysis
      */
-    private static function estimateTrafficByPort(int $port): int
+    private static function getRealTrafficDistribution(array $connections, int $totalTraffic): array
     {
-        $trafficMap = [
-            80 => 1024 * 1024,    // 1MB for HTTP
-            443 => 2 * 1024 * 1024, // 2MB for HTTPS
-            53 => 1024,           // 1KB for DNS
-            22 => 512 * 1024,     // 512KB for SSH
-            21 => 1024 * 1024,    // 1MB for FTP
-            25 => 256 * 1024,     // 256KB for SMTP
-            110 => 128 * 1024,    // 128KB for POP3
-            143 => 256 * 1024,    // 256KB for IMAP
-            993 => 256 * 1024,    // 256KB for IMAPS
-            995 => 128 * 1024,    // 128KB for POP3S
-            587 => 256 * 1024,    // 256KB for SMTP
-            465 => 256 * 1024,    // 256KB for SMTPS
-            123 => 1024,          // 1KB for NTP
-            161 => 1024,          // 1KB for SNMP
-            162 => 1024           // 1KB for SNMP
-        ];
+        if (empty($connections)) {
+            return [];
+        }
         
-        return $trafficMap[$port] ?? 64 * 1024; // Default 64KB
+        $totalConnections = count($connections);
+        $distribution = [];
+        
+        // Distribute traffic equally among connections
+        $trafficPerConnection = (int)($totalTraffic / $totalConnections);
+        
+        foreach ($connections as $connection) {
+            $key = $connection['ip'] . ':' . $connection['port'];
+            if (!isset($distribution[$key])) {
+                $distribution[$key] = [
+                    'ip' => $connection['ip'],
+                    'port' => $connection['port'],
+                    'traffic' => $trafficPerConnection,
+                    'count' => 1
+                ];
+            } else {
+                $distribution[$key]['traffic'] += $trafficPerConnection;
+                $distribution[$key]['count']++;
+            }
+        }
+        
+        return array_values($distribution);
     }
     
     /**
