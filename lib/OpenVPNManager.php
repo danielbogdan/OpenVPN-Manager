@@ -353,7 +353,7 @@ class OpenVPNManager
 
         foreach ($clients as $cn => $c) {
             [$ip] = explode(':', $c['real'], 2);
-            [$country, $city] = \App\GeoIP::lookup($ip);
+            [$country, $city, $lat, $lon] = \App\GeoIP::lookup($ip);
 
             $vip   = $routes[$cn] ?? null;
             $since = $c['since'] ? date('Y-m-d H:i:s', $c['since']) : null;
@@ -367,8 +367,8 @@ class OpenVPNManager
             try {
                 $stmt = $pdo->prepare(
                     "INSERT INTO sessions(tenant_id,user_id,common_name,real_address,virtual_address,
-                     bytes_received,bytes_sent,since,geo_country,geo_city,last_seen)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,NOW())
+                     bytes_received,bytes_sent,since,geo_country,geo_city,geo_lat,geo_lon,last_seen)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW())
                      ON DUPLICATE KEY UPDATE
                      real_address = VALUES(real_address),
                      virtual_address = VALUES(virtual_address),
@@ -376,9 +376,11 @@ class OpenVPNManager
                      bytes_sent = VALUES(bytes_sent),
                      geo_country = VALUES(geo_country),
                      geo_city = VALUES(geo_city),
+                     geo_lat = VALUES(geo_lat),
+                     geo_lon = VALUES(geo_lon),
                      last_seen = NOW()"
                 );
-                $stmt->execute([$tenantId, $userId, $cn, $c['real'], $vip, $c['br'], $c['bs'], $since, $country, $city]);
+                $stmt->execute([$tenantId, $userId, $cn, $c['real'], $vip, $c['br'], $c['bs'], $since, $country, $city, $lat, $lon]);
             } catch (\Throwable $e) {
                 error_log("Failed to insert/update session for $cn: " . $e->getMessage());
             }

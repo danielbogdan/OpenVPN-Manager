@@ -31,6 +31,8 @@ try {
             s.virtual_address,
             s.geo_country,
             s.geo_city,
+            s.geo_lat,
+            s.geo_lon,
             s.bytes_received,
             s.bytes_sent,
             s.last_seen,

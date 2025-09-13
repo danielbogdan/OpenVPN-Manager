@@ -675,17 +675,32 @@ function updateGlobalMap() {
                 const commonName = session.common_name;
                 const tenantId = session.tenant_id;
                 
-                // Convert country name to country code
-                const countryCode = window.countryNameToCode && window.countryNameToCode[countryName] ? window.countryNameToCode[countryName] : countryName;
-                
-                if (countryCode && window.countryCoordinates && window.countryCoordinates[countryCode]) {
-                    const coords = [...window.countryCoordinates[countryCode]];
+                // Use actual coordinates if available, otherwise fall back to country center
+                let coords;
+                if (session.geo_lat && session.geo_lon) {
+                    // Use precise coordinates from GeoIP
+                    coords = [parseFloat(session.geo_lat), parseFloat(session.geo_lon)];
+                    console.log(`📍 Using precise coordinates for ${commonName}: [${coords[0]}, ${coords[1]}]`);
+                } else {
+                    // Fall back to country center coordinates
+                    const countryCode = window.countryNameToCode && window.countryNameToCode[countryName] ? window.countryNameToCode[countryName] : countryName;
                     
-                    // Add small random offset for multiple connections from same country
-                    const offsetLat = (Math.random() - 0.5) * 0.1;
-                    const offsetLng = (Math.random() - 0.5) * 0.1;
-                    coords[0] += offsetLat;
-                    coords[1] += offsetLng;
+                    if (countryCode && window.countryCoordinates && window.countryCoordinates[countryCode]) {
+                        coords = [...window.countryCoordinates[countryCode]];
+                        
+                        // Add small random offset for multiple connections from same country
+                        const offsetLat = (Math.random() - 0.5) * 0.1;
+                        const offsetLng = (Math.random() - 0.5) * 0.1;
+                        coords[0] += offsetLat;
+                        coords[1] += offsetLng;
+                        console.log(`📍 Using country center coordinates for ${commonName}: [${coords[0]}, ${coords[1]}]`);
+                    } else {
+                        console.log(`⚠️ No coordinates available for ${commonName} in ${countryName}`);
+                        return; // Skip this session if no coordinates
+                    }
+                }
+                
+                if (coords) {
                     
                     // Different colors for different tenants
                     const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
@@ -711,32 +726,27 @@ function updateGlobalMap() {
                     globalMap.addLayer(marker);
                     mapMarkers.push(marker);
                     
-                    // Group for summary
-                    if (!markerGroups[countryCode]) {
-                        markerGroups[countryCode] = {
+                    // Group for summary (use country name as key)
+                    if (!markerGroups[countryName]) {
+                        markerGroups[countryName] = {
                             count: 0,
                             tenants: new Set(),
-                            coords: window.countryCoordinates[countryCode]
+                            coords: coords // Use the actual coordinates for this session
                         };
                     }
-                    markerGroups[countryCode].count++;
-                    markerGroups[countryCode].tenants.add(tenantId);
+                    markerGroups[countryName].count++;
+                    markerGroups[countryName].tenants.add(tenantId);
                 }
             });
             
             // Add country summary markers
-            Object.keys(markerGroups).forEach(countryCode => {
-                const group = markerGroups[countryCode];
+            Object.keys(markerGroups).forEach(countryName => {
+                const group = markerGroups[countryName];
                 const coords = group.coords;
                 const totalConnections = group.count;
                 const tenantCount = group.tenants.size;
                 const radius = Math.max(12, Math.min(30, totalConnections * 3));
                 const color = totalConnections > 5 ? '#10b981' : '#3b82f6';
-                
-                // Find country name from country code
-                const countryName = Object.keys(window.countryNameToCode || {}).find(name => 
-                    window.countryNameToCode[name] === countryCode
-                ) || countryCode;
                 
                 const summaryMarker = L.circleMarker(coords, {
                     radius: radius,
