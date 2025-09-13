@@ -3,30 +3,35 @@ require __DIR__ . '/config.php';
 
 use App\DB;
 
-echo "=== FIXING STATUS PATH ===\n\n";
+echo "=== FIX STATUS PATH FOR ALL TENANTS ===\n\n";
 
-try {
-    $pdo = DB::pdo();
+$pdo = DB::pdo();
+
+// Get all tenants
+$tenants = $pdo->query("SELECT id, name, status_path FROM tenants ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+
+echo "Found " . count($tenants) . " tenant(s):\n\n";
+
+foreach ($tenants as $tenant) {
+    echo "🔍 Tenant {$tenant['id']} ({$tenant['name']}):\n";
+    echo "   Current status_path: " . ($tenant['status_path'] ?: 'NULL') . "\n";
     
-    // Update the status_path for tenant 3
-    echo "Updating status_path for tenant 3...\n";
+    // Update to the correct path
+    $correctPath = '/tmp/openvpn-status.log';
     $stmt = $pdo->prepare("UPDATE tenants SET status_path = ? WHERE id = ?");
-    $result = $stmt->execute(['/tmp/openvpn-status.log', 3]);
+    $stmt->execute([$correctPath, $tenant['id']]);
     
-    if ($result) {
-        echo "✅ Status path updated successfully\n";
-    } else {
-        echo "❌ Failed to update status path\n";
-    }
-    
-    // Verify the update
-    echo "\nVerifying update...\n";
-    $stmt = $pdo->prepare("SELECT status_path FROM tenants WHERE id = ?");
-    $stmt->execute([3]);
-    $statusPath = $stmt->fetchColumn();
-    
-    echo "New status_path: $statusPath\n";
-    
-} catch (\Throwable $e) {
-    echo "❌ Error: " . $e->getMessage() . "\n";
+    echo "   ✅ Updated to: $correctPath\n\n";
 }
+
+echo "=== STATUS PATH FIX COMPLETED ===\n\n";
+
+// Verify the changes
+echo "📋 Verification - Current tenant status paths:\n";
+$updatedTenants = $pdo->query("SELECT id, name, status_path FROM tenants ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+foreach ($updatedTenants as $tenant) {
+    echo "  - Tenant {$tenant['id']} ({$tenant['name']}): {$tenant['status_path']}\n";
+}
+
+echo "\n🎯 Now run the test again to see if sessions are populated!\n";
+echo "Command: docker exec ovpnadmin_web php /var/www/html/test_refresh.php\n";
