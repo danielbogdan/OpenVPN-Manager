@@ -314,27 +314,116 @@ $csrf = Auth::csrf();
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
+        // Country coordinates (same as dashboard)
+        const countryCoordinates = {
+            'US' => [39.8283, -98.5795], 'CA' => [56.1304, -106.3468], 'MX' => [23.6345, -102.5528],
+            'BR' => [-14.2350, -51.9253], 'AR' => [-38.4161, -63.6167], 'CL' => [-35.6751, -71.5430],
+            'CO' => [4.5709, -74.2973], 'PE' => [-9.1900, -75.0152], 'VE' => [6.4238, -66.5897],
+            'EC' => [-1.8312, -78.1834], 'BO' => [-16.2902, -63.5887], 'PY' => [-23.4425, -58.4438],
+            'UY' => [-32.5228, -55.7658], 'GB' => [55.3781, -3.4360], 'FR' => [46.2276, 2.2137],
+            'DE' => [51.1657, 10.4515], 'IT' => [41.8719, 12.5674], 'ES' => [40.4637, -3.7492],
+            'NL' => [52.1326, 5.2913], 'BE' => [50.5039, 4.4699], 'CH' => [46.8182, 8.2275],
+            'AT' => [47.5162, 14.5501], 'PL' => [51.9194, 19.1451], 'CZ' => [49.8175, 15.4730],
+            'HU' => [47.1625, 19.5033], 'RO' => [45.9432, 24.9668], 'BG' => [42.7339, 25.4858],
+            'GR' => [39.0742, 21.8243], 'PT' => [39.3999, -8.2245], 'SE' => [60.1282, 18.6435],
+            'NO' => [60.4720, 8.4689], 'DK' => [56.2639, 9.5018], 'FI' => [61.9241, 25.7482],
+            'RU' => [61.5240, 105.3188], 'UA' => [48.3794, 31.1656], 'BY' => [53.7098, 27.9534],
+            'MD' => [47.4116, 28.3699], 'TR' => [38.9637, 35.2433], 'IL' => [31.0461, 34.8516],
+            'SA' => [23.8859, 45.0792], 'AE' => [23.4241, 53.8478], 'EG' => [26.0975, 30.0444],
+            'ZA' => [-30.5595, 22.9375], 'NG' => [9.0820, 8.6753], 'KE' => [-0.0236, 37.9062],
+            'MA' => [31.6295, -7.9811], 'DZ' => [28.0339, 1.6596], 'TN' => [33.8869, 9.5375],
+            'LY' => [26.3351, 17.2283], 'SD' => [12.8628, 30.2176], 'ET' => [9.1450, 40.4897],
+            'GH' => [7.9465, -1.0232], 'CI' => [7.5400, -5.5471], 'SN' => [14.4974, -14.4524],
+            'ML' => [17.5707, -3.9962], 'BF' => [12.2383, -1.5616], 'NE' => [17.6078, 8.0817],
+            'TD' => [15.4542, 18.7322], 'CM' => [7.3697, 12.3547], 'CF' => [6.6111, 20.9394],
+            'CD' => [-4.0383, 21.7587], 'AO' => [-11.2027, 17.8739], 'CN' => [35.8617, 104.1954],
+            'JP' => [36.2048, 138.2529], 'KR' => [35.9078, 127.7669], 'IN' => [20.5937, 78.9629],
+            'AU' => [-25.2744, 133.7751], 'NZ' => [-40.9006, 174.8860], 'TH' => [15.8700, 100.9925],
+            'VN' => [14.0583, 108.2772], 'MY' => [4.2105, 101.9758], 'SG' => [1.3521, 103.8198],
+            'ID' => [-0.7893, 113.9213], 'PH' => [12.8797, 121.7740], 'MM' => [21.9162, 95.9560],
+            'BD' => [23.6850, 90.3563], 'LK' => [7.8731, 80.7718], 'PK' => [30.3753, 69.3451],
+            'AF' => [33.9391, 67.7100], 'IR' => [32.4279, 53.6880], 'IQ' => [33.2232, 43.6793],
+            'SY' => [34.8021, 38.9968], 'LB' => [33.8547, 35.8623], 'JO' => [30.5852, 36.2384],
+            'KW' => [29.3117, 47.4818], 'QA' => [25.3548, 51.1839], 'BH' => [25.9304, 50.6378],
+            'OM' => [21.4735, 55.9754], 'YE' => [15.5527, 48.5164]
+        };
+
+        // Country name to country code mapping
+        const countryNameToCode = {
+            'Romania' => 'RO', 'United States' => 'US', 'Germany' => 'DE', 'France' => 'FR',
+            'United Kingdom' => 'GB', 'Italy' => 'IT', 'Spain' => 'ES', 'Netherlands' => 'NL',
+            'Poland' => 'PL', 'Czech Republic' => 'CZ', 'Hungary' => 'HU', 'Bulgaria' => 'BG',
+            'Greece' => 'GR', 'Portugal' => 'PT', 'Belgium' => 'BE', 'Austria' => 'AT',
+            'Switzerland' => 'CH', 'Sweden' => 'SE', 'Norway' => 'NO', 'Denmark' => 'DK',
+            'Finland' => 'FI', 'Canada' => 'CA', 'Australia' => 'AU', 'Japan' => 'JP',
+            'South Korea' => 'KR', 'China' => 'CN', 'India' => 'IN', 'Brazil' => 'BR',
+            'Mexico' => 'MX', 'Argentina' => 'AR', 'Chile' => 'CL', 'Colombia' => 'CO',
+            'Peru' => 'PE', 'Venezuela' => 'VE', 'Ecuador' => 'EC', 'Bolivia' => 'BO',
+            'Paraguay' => 'PY', 'Uruguay' => 'UY', 'Russia' => 'RU', 'Ukraine' => 'UA',
+            'Belarus' => 'BY', 'Moldova' => 'MD', 'Turkey' => 'TR', 'Israel' => 'IL',
+            'Saudi Arabia' => 'SA', 'United Arab Emirates' => 'AE', 'Egypt' => 'EG',
+            'South Africa' => 'ZA', 'Nigeria' => 'NG', 'Kenya' => 'KE', 'Morocco' => 'MA',
+            'Algeria' => 'DZ', 'Tunisia' => 'TN', 'Libya' => 'LY', 'Sudan' => 'SD',
+            'Ethiopia' => 'ET', 'Ghana' => 'GH', 'Ivory Coast' => 'CI', 'Senegal' => 'SN',
+            'Mali' => 'ML', 'Burkina Faso' => 'BF', 'Niger' => 'NE', 'Chad' => 'TD',
+            'Cameroon' => 'CM', 'Central African Republic' => 'CF', 'Democratic Republic of the Congo' => 'CD',
+            'Republic of the Congo' => 'CG', 'Gabon' => 'GA', 'Equatorial Guinea' => 'GQ',
+            'Sao Tome and Principe' => 'ST', 'Angola' => 'AO'
+        };
+
         // Add markers for countries with traffic
-        geoData.forEach(function(country) {
-            // This is a simplified approach - in production you'd want to use proper country coordinates
-            const coords = getCountryCoordinates(country.country_code);
-            if (coords) {
-                const marker = L.circleMarker(coords, {
-                    radius: Math.max(5, Math.min(20, country.total_bytes / 1000000000)),
-                    fillColor: '#3B82F6',
-                    color: '#1E40AF',
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.6
-                }).addTo(map);
+        if (geoData && geoData.length > 0) {
+            geoData.forEach(function(country) {
+                // Handle both country_code and country_name formats
+                let countryCode = country.country_code || country.country_name;
                 
-                marker.bindPopup(`
-                    <strong>${country.country_code}</strong><br>
-                    Traffic: ${formatBytes(country.total_bytes)}<br>
-                    Users: ${country.unique_users}
-                `);
+                // Convert country name to country code if needed
+                if (countryNameToCode[countryCode]) {
+                    countryCode = countryNameToCode[countryCode];
+                }
+                
+                const coords = countryCoordinates[countryCode];
+                if (coords) {
+                    const radius = Math.max(8, Math.min(25, Math.sqrt(country.total_bytes / 1000000)));
+                    const marker = L.circleMarker(coords, {
+                        radius: radius,
+                        fillColor: '#3B82F6',
+                        color: '#1E40AF',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.6
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <strong>${country.country_name || country.country_code}</strong><br>
+                        Traffic: ${formatBytes(country.total_bytes)}<br>
+                        Users: ${country.unique_users}
+                    `);
+                } else {
+                    console.log('No coordinates found for country:', countryCode);
+                }
+            });
+            
+            // Fit map to show all markers
+            if (geoData.length > 0) {
+                const group = new L.featureGroup();
+                geoData.forEach(function(country) {
+                    let countryCode = country.country_code || country.country_name;
+                    if (countryNameToCode[countryCode]) {
+                        countryCode = countryNameToCode[countryCode];
+                    }
+                    const coords = countryCoordinates[countryCode];
+                    if (coords) {
+                        group.addLayer(L.marker(coords));
+                    }
+                });
+                if (group.getLayers().length > 0) {
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
             }
-        });
+        } else {
+            console.log('No geographic data available');
+        }
 
         function changeTimeRange() {
             const hours = document.getElementById('timeRange').value;
