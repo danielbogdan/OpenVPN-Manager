@@ -334,6 +334,7 @@ class Analytics
     public static function getApplicationDisplayInfo(string $applicationType): array
     {
         $displayInfo = [
+            // Original keys
             'search' => ['name' => 'Search', 'color' => '#3B82F6', 'icon' => '🔍'],
             'video' => ['name' => 'Video Streaming', 'color' => '#EF4444', 'icon' => '📺'],
             'social' => ['name' => 'Social Media', 'color' => '#8B5CF6', 'icon' => '👥'],
@@ -341,6 +342,16 @@ class Analytics
             'streaming' => ['name' => 'Streaming', 'color' => '#F59E0B', 'icon' => '🎬'],
             'messaging' => ['name' => 'Messaging', 'color' => '#06B6D4', 'icon' => '💬'],
             'development' => ['name' => 'Development', 'color' => '#84CC16', 'icon' => '💻'],
+            
+            // New mock data keys
+            'Web Browsing' => ['name' => 'Web Browsing', 'color' => '#3B82F6', 'icon' => '🌐'],
+            'Video Streaming' => ['name' => 'Video Streaming', 'color' => '#EF4444', 'icon' => '📺'],
+            'File Transfer' => ['name' => 'File Transfer', 'color' => '#F59E0B', 'icon' => '📁'],
+            'Email' => ['name' => 'Email', 'color' => '#10B981', 'icon' => '📧'],
+            'Social Media' => ['name' => 'Social Media', 'color' => '#8B5CF6', 'icon' => '👥'],
+            'Gaming' => ['name' => 'Gaming', 'color' => '#EC4899', 'icon' => '🎮'],
+            'Other' => ['name' => 'Other', 'color' => '#6B7280', 'icon' => '📊'],
+            
             'unknown' => ['name' => 'Unknown', 'color' => '#6B7280', 'icon' => '❓']
         ];
         
