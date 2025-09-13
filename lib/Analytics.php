@@ -447,8 +447,8 @@ class Analytics
     private static function getContainerTrafficData(string $containerName, int $hours): array
     {
         try {
-            // Use netstat inside the container to get actual application traffic
-            $cmd = "docker exec {$containerName} netstat -i 2>/dev/null | grep tun0 || echo 'no_tun0'";
+            // Use /proc/net/dev to get interface statistics (works with BusyBox)
+            $cmd = "docker exec {$containerName} cat /proc/net/dev 2>/dev/null | grep tun0 || echo 'no_tun0'";
             $output = shell_exec($cmd);
             
             if (strpos($output, 'no_tun0') !== false) {
@@ -456,21 +456,15 @@ class Analytics
                 return [];
             }
             
-            // Parse netstat output to get RX/TX bytes
-            $lines = explode("\n", trim($output));
+            // Parse /proc/net/dev output to get RX/TX bytes
+            // Format: interface: rx_bytes rx_packets ... tx_bytes tx_packets ...
             $tun0Data = null;
             
-            foreach ($lines as $line) {
-                if (strpos($line, 'tun0') !== false) {
-                    $parts = preg_split('/\s+/', trim($line));
-                    if (count($parts) >= 10) {
-                        $tun0Data = [
-                            'rx_bytes' => (int)$parts[2],
-                            'tx_bytes' => (int)$parts[6]
-                        ];
-                        break;
-                    }
-                }
+            if (preg_match('/tun0:\s*(\d+)\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)\s+\d+/', $output, $matches)) {
+                $tun0Data = [
+                    'rx_bytes' => (int)$matches[1],
+                    'tx_bytes' => (int)$matches[2]
+                ];
             }
             
             if (!$tun0Data || ($tun0Data['rx_bytes'] == 0 && $tun0Data['tx_bytes'] == 0)) {
@@ -481,18 +475,22 @@ class Analytics
             $connCmd = "docker exec {$containerName} netstat -an 2>/dev/null | grep ESTABLISHED | wc -l";
             $activeConnections = (int)trim(shell_exec($connCmd));
             
+            // Get number of connected VPN clients from OpenVPN status
+            $statusCmd = "docker exec {$containerName} cat /tmp/openvpn-status.log 2>/dev/null | grep 'CLIENT_LIST,' | wc -l";
+            $vpnClients = (int)trim(shell_exec($statusCmd));
+            
             // Analyze traffic patterns to classify applications
             $totalBytes = $tun0Data['rx_bytes'] + $tun0Data['tx_bytes'];
             $downloadRatio = $tun0Data['rx_bytes'] / max($totalBytes, 1);
             $uploadRatio = $tun0Data['tx_bytes'] / max($totalBytes, 1);
             
             // Classify based on traffic patterns
-            $appType = self::classifyContainerTraffic($tun0Data, $activeConnections);
+            $appType = self::classifyContainerTraffic($tun0Data, $activeConnections, $vpnClients);
             
             return [[
                 'application_type' => $appType,
                 'total_bytes' => $totalBytes,
-                'unique_users' => 1, // We can't distinguish users from container-level data
+                'unique_users' => $vpnClients,
                 'connection_count' => $activeConnections
             ]];
             
@@ -505,29 +503,37 @@ class Analytics
     /**
      * Classify traffic based on container-level patterns
      */
-    private static function classifyContainerTraffic(array $tun0Data, int $activeConnections): string
+    private static function classifyContainerTraffic(array $tun0Data, int $activeConnections, int $vpnClients): string
     {
         $totalBytes = $tun0Data['rx_bytes'] + $tun0Data['tx_bytes'];
         $downloadRatio = $tun0Data['rx_bytes'] / max($totalBytes, 1);
         $uploadRatio = $tun0Data['tx_bytes'] / max($totalBytes, 1);
         
-        // High download ratio with many connections - likely web browsing
-        if ($downloadRatio > 0.7 && $activeConnections > 5) {
-            return 'Web Browsing';
-        }
+        // Based on your data: 180MB received, 91MB sent = 271MB total
+        // Download ratio: 180/271 = 66%, Upload ratio: 91/271 = 34%
         
-        // Very high download ratio with moderate connections - likely streaming
-        if ($downloadRatio > 0.8 && $activeConnections > 2) {
+        // Very high download ratio - likely video streaming
+        if ($downloadRatio > 0.8) {
             return 'Video Streaming';
         }
         
-        // High upload ratio - likely file transfer or backup
+        // High download ratio with significant traffic - likely web browsing
+        if ($downloadRatio > 0.6 && $totalBytes > 50 * 1024 * 1024) { // > 50MB
+            return 'Web Browsing';
+        }
+        
+        // High upload ratio - likely file transfer
         if ($uploadRatio > 0.6) {
             return 'File Transfer';
         }
         
-        // Balanced traffic with many connections - likely web browsing
-        if ($activeConnections > 3) {
+        // Balanced traffic with significant volume - likely web browsing
+        if ($totalBytes > 100 * 1024 * 1024) { // > 100MB
+            return 'Web Browsing';
+        }
+        
+        // Moderate traffic - could be various applications
+        if ($totalBytes > 10 * 1024 * 1024) { // > 10MB
             return 'Web Browsing';
         }
         
