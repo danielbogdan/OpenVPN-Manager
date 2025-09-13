@@ -199,7 +199,7 @@ $csrf = Auth::csrf();
         const trafficCtx = document.getElementById('trafficChart').getContext('2d');
         const trafficData = <?= json_encode($data['hourly_data']) ?>;
         
-        new Chart(trafficCtx, {
+        let trafficChart = new Chart(trafficCtx, {
             type: 'line',
             data: {
                 labels: trafficData.map(d => d.hour),
@@ -245,7 +245,7 @@ $csrf = Auth::csrf();
         const appCtx = document.getElementById('appChart').getContext('2d');
         const appData = <?= json_encode($data['application_breakdown']) ?>;
         
-        new Chart(appCtx, {
+        let appChart = new Chart(appCtx, {
             type: 'doughnut',
             data: {
                 labels: appData.map(d => {
@@ -283,7 +283,7 @@ $csrf = Auth::csrf();
         const connectionsCtx = document.getElementById('connectionsChart').getContext('2d');
         const connectionsData = <?= json_encode($data['connection_trends']) ?>;
         
-        new Chart(connectionsCtx, {
+        let connectionsChart = new Chart(connectionsCtx, {
             type: 'line',
             data: {
                 labels: connectionsData.map(d => d.hour),
@@ -541,6 +541,18 @@ $csrf = Auth::csrf();
                     </div>
                 </div>
             `).join('');
+        }
+
+        function updateTrafficChart(sessions) {
+            // For now, just log that this function was called
+            // In a full implementation, you would update the traffic chart with new data
+            console.log('updateTrafficChart called with', sessions.length, 'sessions');
+        }
+
+        function updateGeoMap(sessions) {
+            // For now, just log that this function was called
+            // The geographic map is already updated by the main map logic
+            console.log('updateGeoMap called with', sessions.length, 'sessions');
         }
 
         function formatBytes(bytes) {
