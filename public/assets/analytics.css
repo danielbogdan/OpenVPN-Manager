@@ -2,17 +2,19 @@
 
 /* Time Range Container */
 .time-range-container {
-    background: transparent;
-    border-bottom: none;
-    padding: 20px 24px 16px 24px;
+    background: rgba(17, 24, 39, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid #374151;
+    padding: 16px 24px;
     display: flex;
     justify-content: flex-end;
     align-items: center;
     max-width: 1200px;
     margin: 0 auto;
     position: sticky;
-    top: 80px;
-    z-index: 90;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .analytics-breadcrumb {
@@ -71,16 +73,17 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    background: rgba(31, 41, 55, 0.5);
+    background: rgba(31, 41, 55, 0.8);
     padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid #374151;
+    border-radius: 8px;
+    border: 1px solid #4b5563;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .time-range-container .time-range-label {
-    color: #d1d5db;
-    font-size: 0.8rem;
-    font-weight: 500;
+    color: #f3f4f6;
+    font-size: 0.875rem;
+    font-weight: 600;
     margin: 0;
     white-space: nowrap;
 }
