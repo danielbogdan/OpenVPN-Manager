@@ -550,9 +550,113 @@ $csrf = Auth::csrf();
         }
 
         function updateGeoMap(sessions) {
-            // For now, just log that this function was called
-            // The geographic map is already updated by the main map logic
             console.log('updateGeoMap called with', sessions.length, 'sessions');
+            
+            // Clear existing markers
+            if (window.geoMapMarkers) {
+                window.geoMapMarkers.forEach(marker => map.removeLayer(marker));
+                window.geoMapMarkers = [];
+            } else {
+                window.geoMapMarkers = [];
+            }
+            
+            if (sessions && sessions.length > 0) {
+                // Collect all valid coordinates for dynamic bounds
+                const validSessions = [];
+                const allCoords = [];
+                
+                sessions.forEach(session => {
+                    const countryName = session.geo_country;
+                    const city = session.geo_city || 'Unknown City';
+                    const realAddress = session.real_address;
+                    const commonName = session.common_name;
+                    const tenantId = session.tenant_id;
+                    
+                    // Use actual coordinates if available, otherwise fall back to country center
+                    let coords;
+                    if (session.geo_lat && session.geo_lon) {
+                        // Use precise coordinates from GeoIP
+                        coords = [parseFloat(session.geo_lat), parseFloat(session.geo_lon)];
+                        console.log(`📍 Using precise coordinates for ${commonName}: [${coords[0]}, ${coords[1]}]`);
+                    } else {
+                        // Fall back to country center coordinates
+                        const countryCode = countryNameToCode && countryNameToCode[countryName] ? countryNameToCode[countryName] : countryName;
+                        
+                        if (countryCode && countryCoordinates && countryCoordinates[countryCode]) {
+                            coords = [...countryCoordinates[countryCode]];
+                            
+                            // Add small random offset for multiple connections from same country
+                            const offsetLat = (Math.random() - 0.5) * 0.1;
+                            const offsetLng = (Math.random() - 0.5) * 0.1;
+                            coords[0] += offsetLat;
+                            coords[1] += offsetLng;
+                            console.log(`📍 Using country center coordinates for ${commonName}: [${coords[0]}, ${coords[1]}]`);
+                        } else {
+                            console.log(`⚠️ No coordinates available for ${commonName} in ${countryName}`);
+                            return; // Skip this session if no coordinates
+                        }
+                    }
+                    
+                    if (coords) {
+                        validSessions.push({...session, coords});
+                        allCoords.push(coords);
+                    }
+                });
+                
+                // Dynamic map bounds and zoom based on connections
+                if (allCoords.length > 0) {
+                    if (allCoords.length === 1) {
+                        // Single connection: zoom in close
+                        map.setView(allCoords[0], 10);
+                        console.log(`🎯 Single connection: zooming to level 10`);
+                    } else {
+                        // Multiple connections: fit bounds with padding
+                        const group = new L.featureGroup();
+                        allCoords.forEach(coord => {
+                            group.addLayer(L.marker(coord));
+                        });
+                        map.fitBounds(group.getBounds().pad(0.1));
+                        console.log(`🎯 Multiple connections: fitting bounds for ${allCoords.length} locations`);
+                    }
+                } else {
+                    // No connections: keep global view
+                    map.setView([20, 0], 2);
+                    console.log(`🎯 No connections: keeping global view`);
+                }
+                
+                // Add markers for each valid session
+                validSessions.forEach(session => {
+                    const { coords, geo_country: countryName, geo_city: city, real_address: realAddress, common_name: commonName, tenant_id: tenantId } = session;
+                    
+                    // Different colors for different tenants
+                    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+                    const color = colors[tenantId % colors.length];
+                    
+                    const marker = L.circleMarker(coords, {
+                        radius: 8,
+                        fillColor: color,
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).bindPopup(`
+                        <div style='min-width: 200px;'>
+                            <strong>🌍 ${countryName} - ${city}</strong><br>
+                            <strong>👤 User:</strong> ${commonName}<br>
+                            <strong>🌐 IP:</strong> ${realAddress}<br>
+                            <strong>🏢 Tenant:</strong> ${tenantId}<br>
+                            <strong>📊 Status:</strong> <span style='color: #10b981;'>● Active</span>
+                        </div>
+                    `);
+                    
+                    map.addLayer(marker);
+                    window.geoMapMarkers.push(marker);
+                });
+            } else {
+                // No connections: keep global view
+                map.setView([20, 0], 2);
+                console.log(`🎯 No connections: keeping global view`);
+            }
         }
 
         function formatBytes(bytes) {
