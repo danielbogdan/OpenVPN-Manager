@@ -668,6 +668,10 @@ function updateGlobalMap() {
             // Add markers for each connection
             const markerGroups = {};
             
+            // Collect all valid coordinates for dynamic bounds
+            const validSessions = [];
+            const allCoords = [];
+            
             data.sessions.forEach(session => {
                 const countryName = session.geo_country;
                 const city = session.geo_city || 'Unknown City';
@@ -701,42 +705,70 @@ function updateGlobalMap() {
                 }
                 
                 if (coords) {
-                    
-                    // Different colors for different tenants
-                    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-                    const color = colors[tenantId % colors.length];
-                    
-                    const marker = L.circleMarker(coords, {
-                        radius: 8,
-                        fillColor: color,
-                        color: '#fff',
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.8
-                    }).bindPopup(`
-                        <div style='min-width: 200px;'>
-                            <strong>🌍 ${countryName} - ${city}</strong><br>
-                            <strong>👤 User:</strong> ${commonName}<br>
-                            <strong>🌐 IP:</strong> ${realAddress}<br>
-                            <strong>🏢 Tenant:</strong> ${tenantId}<br>
-                            <strong>📊 Status:</strong> <span style='color: #10b981;'>● Active</span>
-                        </div>
-                    `);
-                    
-                    globalMap.addLayer(marker);
-                    mapMarkers.push(marker);
-                    
-                    // Group for summary (use country name as key)
-                    if (!markerGroups[countryName]) {
-                        markerGroups[countryName] = {
-                            count: 0,
-                            tenants: new Set(),
-                            coords: coords // Use the actual coordinates for this session
-                        };
-                    }
-                    markerGroups[countryName].count++;
-                    markerGroups[countryName].tenants.add(tenantId);
+                    validSessions.push({...session, coords});
+                    allCoords.push(coords);
                 }
+            });
+            
+            // Dynamic map bounds and zoom based on connections
+            if (allCoords.length > 0) {
+                if (allCoords.length === 1) {
+                    // Single connection: zoom in close
+                    globalMap.setView(allCoords[0], 10);
+                    console.log(`🎯 Single connection: zooming to level 10`);
+                } else {
+                    // Multiple connections: fit bounds with padding
+                    const group = new L.featureGroup();
+                    allCoords.forEach(coord => {
+                        group.addLayer(L.marker(coord));
+                    });
+                    globalMap.fitBounds(group.getBounds().pad(0.1));
+                    console.log(`🎯 Multiple connections: fitting bounds for ${allCoords.length} locations`);
+                }
+            } else {
+                // No connections: keep global view
+                globalMap.setView([20, 0], 2);
+                console.log(`🎯 No connections: keeping global view`);
+            }
+            
+            // Add markers for each valid session
+            validSessions.forEach(session => {
+                const { coords, geo_country: countryName, geo_city: city, real_address: realAddress, common_name: commonName, tenant_id: tenantId } = session;
+                
+                // Different colors for different tenants
+                const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+                const color = colors[tenantId % colors.length];
+                
+                const marker = L.circleMarker(coords, {
+                    radius: 8,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).bindPopup(`
+                    <div style='min-width: 200px;'>
+                        <strong>🌍 ${countryName} - ${city}</strong><br>
+                        <strong>👤 User:</strong> ${commonName}<br>
+                        <strong>🌐 IP:</strong> ${realAddress}<br>
+                        <strong>🏢 Tenant:</strong> ${tenantId}<br>
+                        <strong>📊 Status:</strong> <span style='color: #10b981;'>● Active</span>
+                    </div>
+                `);
+                
+                globalMap.addLayer(marker);
+                mapMarkers.push(marker);
+                
+                // Group for summary (use country name as key)
+                if (!markerGroups[countryName]) {
+                    markerGroups[countryName] = {
+                        count: 0,
+                        tenants: new Set(),
+                        coords: coords // Use the actual coordinates for this session
+                    };
+                }
+                markerGroups[countryName].count++;
+                markerGroups[countryName].tenants.add(tenantId);
             });
             
             // Add country summary markers
