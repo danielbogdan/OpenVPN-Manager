@@ -86,20 +86,8 @@ $csrf = Auth::csrf();
         </div>
     </div>
     
-    <!-- Analytics-specific controls -->
-    <div class="analytics-controls">
-        <div class="analytics-breadcrumb">
-            <a href="/tenant.php?id=<?= $tenantId ?>" class="breadcrumb-link">
-                <span class="breadcrumb-icon">🏢</span>
-                Tenant
-            </a>
-            <span class="breadcrumb-separator">›</span>
-            <span class="breadcrumb-current">
-                <span class="breadcrumb-icon">📊</span>
-                Analytics
-            </span>
-        </div>
-        
+    <!-- Time range selector -->
+    <div class="time-range-container">
         <div class="time-range-selector">
             <label for="timeRange" class="time-range-label">Time Range:</label>
             <select id="timeRange" onchange="changeTimeRange()" class="time-range-select">
