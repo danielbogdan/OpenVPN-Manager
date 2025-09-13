@@ -9,7 +9,7 @@ echo "=== OPENVPN STATUS MONITOR ===\n\n";
 $statusFile = '/tmp/openvpn-status.log';
 
 // Get all tenant containers dynamically
-$pdo = DB::getInstance();
+$pdo = DB::pdo();
 $tenants = $pdo->query("SELECT id, name FROM tenants ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
 
 if (empty($tenants)) {
