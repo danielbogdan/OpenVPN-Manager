@@ -2,9 +2,8 @@
 
 /* Time Range Container */
 .time-range-container {
-    background: rgba(17, 24, 39, 0.95);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid #374151;
+    background: transparent;
+    border-bottom: none;
     padding: 16px 24px;
     display: flex;
     justify-content: flex-end;
@@ -14,7 +13,6 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .analytics-breadcrumb {
@@ -73,11 +71,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    background: rgba(31, 41, 55, 0.8);
+    background: transparent;
     padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid #4b5563;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    border: none;
 }
 
 .time-range-container .time-range-label {
@@ -89,9 +86,9 @@
 }
 
 .time-range-container .time-range-select {
-    background: #1f2937;
+    background: rgba(31, 41, 55, 0.6);
     color: #f9fafb;
-    border: 1px solid #374151;
+    border: 1px solid #4b5563;
     border-radius: 6px;
     padding: 6px 10px;
     font-size: 0.8rem;
