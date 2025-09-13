@@ -38,6 +38,11 @@
         
         // Update session data for all tenants
         updateAllTenantSessions();
+        
+        // Update global map
+        if (typeof updateGlobalMap === 'function') {
+            updateGlobalMap();
+        }
     }
     
     // Function to update session data for all tenants

@@ -297,20 +297,27 @@ foreach ($tenants as $tenant) {
 // World Map
 try {
     const map = L.map('worldMap').setView([20, 0], 2);
+    globalMap = map; // Make map globally accessible
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
 }).addTo(map);
 
-// Get connection data and add markers
+// Get real-time connection data and add markers
 <?php
 $connectionData = $pdo->query("
-    SELECT geo_country, COUNT(*) as connection_count, 
-           COUNT(DISTINCT tenant_id) as tenant_count
+    SELECT 
+        geo_country, 
+        geo_city,
+        real_address,
+        common_name,
+        tenant_id,
+        COUNT(*) as connection_count, 
+        COUNT(DISTINCT tenant_id) as tenant_count
     FROM sessions 
     WHERE geo_country IS NOT NULL 
-    AND last_seen >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-    GROUP BY geo_country
+    AND last_seen >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
+    GROUP BY geo_country, geo_city, real_address
 ")->fetchAll();
 
 $countryCoordinates = [
@@ -445,35 +452,95 @@ $countryCoordinates = [
     'CM' => [7.3697, 12.3547]
 ];
 
+// Make country coordinates globally accessible
+window.countryCoordinates = <?= json_encode($countryCoordinates) ?>;
+
 // Wait for map to be fully loaded before controlling overlay
 echo "map.whenReady(function() {\n";
 echo "    // Hide the no-data overlay by default when map loads\n";
 echo "    document.getElementById('mapNoData').style.display = 'none';\n";
 
 if (!empty($connectionData)) {
-    echo "    // Add markers to map\n";
+    echo "    // Add real-time connection markers to map\n";
+    $markerGroups = [];
+    
     foreach ($connectionData as $data) {
         $countryCode = $data['geo_country'];
+        $city = $data['geo_city'] ?: 'Unknown City';
+        $realAddress = $data['real_address'];
+        $commonName = $data['common_name'];
+        $tenantId = $data['tenant_id'];
         $connectionCount = $data['connection_count'];
-        $tenantCount = $data['tenant_count'];
         
         if (isset($countryCoordinates[$countryCode])) {
             $coords = $countryCoordinates[$countryCode];
-            $radius = max(8, min(25, $connectionCount * 2));
-            $color = $connectionCount > 10 ? '#10b981' : ($connectionCount > 5 ? '#f59e0b' : '#3b82f6');
+            
+            // Add small random offset for multiple connections from same country
+            $offsetLat = (rand(-50, 50) / 1000);
+            $offsetLng = (rand(-50, 50) / 1000);
+            $coords[0] += $offsetLat;
+            $coords[1] += $offsetLng;
+            
+            // Different colors for different tenants
+            $colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+            $color = $colors[$tenantId % count($colors)];
+            
             echo "    L.circleMarker([{$coords[0]}, {$coords[1]}], {
-                radius: {$radius},
+                radius: 8,
                 fillColor: '{$color}',
                 color: '#fff',
                 weight: 2,
                 opacity: 1,
                 fillOpacity: 0.8
             }).addTo(map).bindPopup(`
-                <strong>{$countryCode}</strong><br>
-                Connections: {$connectionCount}<br>
-                Tenants: {$tenantCount}
+                <div style='min-width: 200px;'>
+                    <strong>🌍 {$countryCode} - {$city}</strong><br>
+                    <strong>👤 User:</strong> {$commonName}<br>
+                    <strong>🌐 IP:</strong> {$realAddress}<br>
+                    <strong>🏢 Tenant:</strong> {$tenantId}<br>
+                    <strong>📊 Status:</strong> <span style='color: #10b981;'>● Active</span>
+                </div>
             `);\n";
+            
+            // Group markers by country for summary
+            if (!isset($markerGroups[$countryCode])) {
+                $markerGroups[$countryCode] = [
+                    'count' => 0,
+                    'tenants' => [],
+                    'coords' => $countryCoordinates[$countryCode]
+                ];
+            }
+            $markerGroups[$countryCode]['count'] += $connectionCount;
+            if (!in_array($tenantId, $markerGroups[$countryCode]['tenants'])) {
+                $markerGroups[$countryCode]['tenants'][] = $tenantId;
+            }
         }
+    }
+    
+    // Add country summary markers
+    echo "    // Add country summary markers\n";
+    foreach ($markerGroups as $countryCode => $group) {
+        $coords = $group['coords'];
+        $totalConnections = $group['count'];
+        $tenantCount = count($group['tenants']);
+        $radius = max(12, min(30, $totalConnections * 3));
+        $color = $totalConnections > 5 ? '#10b981' : '#3b82f6';
+        
+        echo "    L.circleMarker([{$coords[0]}, {$coords[1]}], {
+            radius: {$radius},
+            fillColor: '{$color}',
+            color: '#fff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 0.6
+        }).addTo(map).bindPopup(`
+            <div style='min-width: 200px;'>
+                <strong>🌍 {$countryCode} Summary</strong><br>
+                <strong>📊 Total Connections:</strong> {$totalConnections}<br>
+                <strong>🏢 Active Tenants:</strong> {$tenantCount}<br>
+                <strong>📍 Locations:</strong> " . count($connectionData) . " connection points
+            </div>
+        `);\n";
     }
 } else {
     echo "    // Only show no-data overlay if there's truly no connection data\n";
@@ -489,8 +556,126 @@ echo "});\n";
 }
 
 
+// Global map variable for updates
+let globalMap = null;
+let mapMarkers = [];
+
 function refreshMap() {
     location.reload();
+}
+
+// Function to update map with real-time data
+function updateGlobalMap() {
+    if (!globalMap) return;
+    
+    // Clear existing markers
+    mapMarkers.forEach(marker => globalMap.removeLayer(marker));
+    mapMarkers = [];
+    
+    // Fetch real-time connection data
+    fetch('/actions/get_global_sessions.php', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-cache'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.sessions.length > 0) {
+            // Hide no-data overlay
+            document.getElementById('mapNoData').style.display = 'none';
+            
+            // Add markers for each connection
+            const markerGroups = {};
+            
+            data.sessions.forEach(session => {
+                const countryCode = session.geo_country;
+                const city = session.geo_city || 'Unknown City';
+                const realAddress = session.real_address;
+                const commonName = session.common_name;
+                const tenantId = session.tenant_id;
+                
+                if (countryCode && window.countryCoordinates && window.countryCoordinates[countryCode]) {
+                    const coords = [...window.countryCoordinates[countryCode]];
+                    
+                    // Add small random offset for multiple connections from same country
+                    const offsetLat = (Math.random() - 0.5) * 0.1;
+                    const offsetLng = (Math.random() - 0.5) * 0.1;
+                    coords[0] += offsetLat;
+                    coords[1] += offsetLng;
+                    
+                    // Different colors for different tenants
+                    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+                    const color = colors[tenantId % colors.length];
+                    
+                    const marker = L.circleMarker(coords, {
+                        radius: 8,
+                        fillColor: color,
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).bindPopup(`
+                        <div style='min-width: 200px;'>
+                            <strong>🌍 ${countryCode} - ${city}</strong><br>
+                            <strong>👤 User:</strong> ${commonName}<br>
+                            <strong>🌐 IP:</strong> ${realAddress}<br>
+                            <strong>🏢 Tenant:</strong> ${tenantId}<br>
+                            <strong>📊 Status:</strong> <span style='color: #10b981;'>● Active</span>
+                        </div>
+                    `);
+                    
+                    globalMap.addLayer(marker);
+                    mapMarkers.push(marker);
+                    
+                    // Group for summary
+                    if (!markerGroups[countryCode]) {
+                        markerGroups[countryCode] = {
+                            count: 0,
+                            tenants: new Set(),
+                            coords: window.countryCoordinates[countryCode]
+                        };
+                    }
+                    markerGroups[countryCode].count++;
+                    markerGroups[countryCode].tenants.add(tenantId);
+                }
+            });
+            
+            // Add country summary markers
+            Object.keys(markerGroups).forEach(countryCode => {
+                const group = markerGroups[countryCode];
+                const coords = group.coords;
+                const totalConnections = group.count;
+                const tenantCount = group.tenants.size;
+                const radius = Math.max(12, Math.min(30, totalConnections * 3));
+                const color = totalConnections > 5 ? '#10b981' : '#3b82f6';
+                
+                const summaryMarker = L.circleMarker(coords, {
+                    radius: radius,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.6
+                }).bindPopup(`
+                    <div style='min-width: 200px;'>
+                        <strong>🌍 ${countryCode} Summary</strong><br>
+                        <strong>📊 Total Connections:</strong> ${totalConnections}<br>
+                        <strong>🏢 Active Tenants:</strong> ${tenantCount}<br>
+                        <strong>📍 Locations:</strong> ${data.sessions.length} connection points
+                    </div>
+                `);
+                
+                globalMap.addLayer(summaryMarker);
+                mapMarkers.push(summaryMarker);
+            });
+        } else {
+            // Show no-data overlay
+            document.getElementById('mapNoData').style.display = 'block';
+        }
+    })
+    .catch(error => {
+        console.error('Error updating global map:', error);
+    });
 }
 
 // Ensure overlay is hidden when page loads
