@@ -687,24 +687,30 @@ class Analytics
     }
     
     /**
-     * Get domain name from IP (simplified)
+     * Get domain name from IP using real DNS reverse lookup
      */
     private static function getDomainFromIP(string $ip): string
     {
-        // Common IP to domain mappings
-        $commonIPs = [
-            '8.8.8.8' => 'google.com',
-            '8.8.4.4' => 'google.com',
-            '1.1.1.1' => 'cloudflare.com',
-            '1.0.0.1' => 'cloudflare.com',
-            '142.250.191.14' => 'youtube.com',
-            '31.13.69.35' => 'facebook.com',
-            '104.16.85.20' => 'github.com',
-            '151.101.1.140' => 'reddit.com',
-            '13.107.42.14' => 'microsoft.com'
-        ];
-        
-        return $commonIPs[$ip] ?? 'unknown-domain.com';
+        try {
+            // Perform real DNS reverse lookup
+            $hostname = gethostbyaddr($ip);
+            
+            // If reverse lookup fails, return the IP itself
+            if ($hostname === $ip) {
+                return $ip;
+            }
+            
+            // Extract domain from hostname (remove subdomains)
+            $parts = explode('.', $hostname);
+            if (count($parts) >= 2) {
+                return $parts[count($parts) - 2] . '.' . $parts[count($parts) - 1];
+            }
+            
+            return $hostname;
+        } catch (\Exception $e) {
+            // If DNS lookup fails, return the IP
+            return $ip;
+        }
     }
     
     /**
@@ -780,54 +786,13 @@ class Analytics
     }
     
     /**
-     * Create destinations from real traffic when no connections are found
+     * Return empty array when no real connections are found - no mock data
      */
     private static function createDestinationsFromRealTraffic(int $tenantId, int $totalTraffic, int $hours, int $limit): array
     {
-        $pdo = DB::pdo();
-        
-        // Get session data to get country info
-        $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
-        $stmt = $pdo->prepare("
-            SELECT 
-                common_name,
-                real_address,
-                bytes_received,
-                bytes_sent,
-                last_seen,
-                geo_country,
-                geo_city
-            FROM sessions 
-            WHERE tenant_id = ? AND last_seen >= ?
-            ORDER BY last_seen DESC
-            LIMIT 1
-        ");
-        $stmt->execute([$tenantId, $cutoffTime]);
-        $session = $stmt->fetch();
-        
-        $country = $session['geo_country'] ?? 'Unknown';
-        
-        // Create realistic destinations based on real traffic
-        $destinations = [
-            [
-                'destination_ip' => '8.8.8.8',
-                'domain' => 'google.com',
-                'application_type' => 'Web Browsing',
-                'country_code' => $country,
-                'total_bytes' => (int)($totalTraffic * 0.75), // 75% of real traffic
-                'connection_count' => 1
-            ],
-            [
-                'destination_ip' => '1.1.1.1',
-                'domain' => 'cloudflare.com',
-                'application_type' => 'System Services',
-                'country_code' => $country,
-                'total_bytes' => (int)($totalTraffic * 0.25), // 25% of real traffic
-                'connection_count' => 1
-            ]
-        ];
-        
-        return array_slice($destinations, 0, $limit);
+        // If no real connections are found, return empty array
+        // We don't create mock destinations - only show real data
+        return [];
     }
     
     /**
