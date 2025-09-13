@@ -35,16 +35,16 @@ class Analytics
         $stmt->execute([$tenantId]);
         $totalUsers = $stmt->fetch()['total_users'] ?? 0;
         
-        // Get traffic summary for the period
+        // Get traffic summary for the period from sessions table
         $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
         $stmt = $pdo->prepare("
             SELECT 
-                SUM(bytes_in + bytes_out) as total_traffic,
-                SUM(bytes_in) as total_in,
-                SUM(bytes_out) as total_out,
-                COUNT(DISTINCT user_id) as unique_users
-            FROM traffic_stats_hourly 
-            WHERE tenant_id = ? AND hour_timestamp >= ?
+                SUM(bytes_received + bytes_sent) as total_traffic,
+                SUM(bytes_received) as total_in,
+                SUM(bytes_sent) as total_out,
+                COUNT(DISTINCT COALESCE(user_id, common_name)) as unique_users
+            FROM sessions 
+            WHERE tenant_id = ? AND last_seen >= ?
         ");
         $stmt->execute([$tenantId, $cutoffTime]);
         $trafficSummary = $stmt->fetch();
@@ -93,14 +93,14 @@ class Analytics
         $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
         $stmt = $pdo->prepare("
             SELECT 
-                DATE_FORMAT(hour_timestamp, '%Y-%m-%d %H:00') as hour,
-                SUM(bytes_in) as bytes_in,
-                SUM(bytes_out) as bytes_out,
-                SUM(bytes_in + bytes_out) as total_bytes
-            FROM traffic_stats_hourly 
-            WHERE tenant_id = ? AND hour_timestamp >= ?
-            GROUP BY hour_timestamp
-            ORDER BY hour_timestamp ASC
+                DATE_FORMAT(last_seen, '%Y-%m-%d %H:00') as hour,
+                SUM(bytes_received) as bytes_in,
+                SUM(bytes_sent) as bytes_out,
+                SUM(bytes_received + bytes_sent) as total_bytes
+            FROM sessions 
+            WHERE tenant_id = ? AND last_seen >= ?
+            GROUP BY DATE_FORMAT(last_seen, '%Y-%m-%d %H:00')
+            ORDER BY hour ASC
         ");
         
         $stmt->execute([$tenantId, $cutoffTime]);
@@ -214,16 +214,16 @@ class Analytics
             throw new \RuntimeException("User not found");
         }
         
-        // Get user traffic summary
+        // Get user traffic summary from sessions table
         $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
         $stmt = $pdo->prepare("
             SELECT 
-                SUM(bytes_in + bytes_out) as total_traffic,
-                SUM(bytes_in) as total_in,
-                SUM(bytes_out) as total_out,
+                SUM(bytes_received + bytes_sent) as total_traffic,
+                SUM(bytes_received) as total_in,
+                SUM(bytes_sent) as total_out,
                 COUNT(*) as connection_count
-            FROM traffic_stats_hourly 
-            WHERE tenant_id = ? AND user_id = ? AND hour_timestamp >= ?
+            FROM sessions 
+            WHERE tenant_id = ? AND user_id = ? AND last_seen >= ?
         ");
         $stmt->execute([$tenantId, $userId, $cutoffTime]);
         $trafficSummary = $stmt->fetch();
@@ -262,14 +262,14 @@ class Analytics
         $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
         $stmt = $pdo->prepare("
             SELECT 
-                DATE_FORMAT(hour_timestamp, '%Y-%m-%d %H:00') as hour,
-                SUM(bytes_in) as bytes_in,
-                SUM(bytes_out) as bytes_out,
-                SUM(bytes_in + bytes_out) as total_bytes
-            FROM traffic_stats_hourly 
-            WHERE tenant_id = ? AND user_id = ? AND hour_timestamp >= ?
-            GROUP BY hour_timestamp
-            ORDER BY hour_timestamp ASC
+                DATE_FORMAT(last_seen, '%Y-%m-%d %H:00') as hour,
+                SUM(bytes_received) as bytes_in,
+                SUM(bytes_sent) as bytes_out,
+                SUM(bytes_received + bytes_sent) as total_bytes
+            FROM sessions 
+            WHERE tenant_id = ? AND user_id = ? AND last_seen >= ?
+            GROUP BY DATE_FORMAT(last_seen, '%Y-%m-%d %H:00')
+            ORDER BY hour ASC
         ");
         
         $stmt->execute([$tenantId, $userId, $cutoffTime]);
